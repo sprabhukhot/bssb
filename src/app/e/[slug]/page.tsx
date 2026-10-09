@@ -1,0 +1,69 @@
+import { notFound } from "next/navigation";
+import { ParticipantChrome } from "@/components/participant-chrome";
+import { RegisterForm } from "@/components/register-form";
+import { createClient } from "@/lib/supabase/server";
+import { formatEventWhen } from "@/lib/utils";
+
+export default async function PublicEventPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  const supabase = await createClient();
+
+  const { data: event } = await supabase
+    .from("events")
+    .select("*")
+    .eq("slug", slug)
+    .eq("is_published", true)
+    .maybeSingle();
+
+  if (!event) notFound();
+
+  const { data: count } = await supabase.rpc("event_registration_count", {
+    p_event_id: event.id,
+  });
+
+  const registered = typeof count === "number" ? count : 0;
+  const remaining =
+    event.capacity == null ? null : Math.max(event.capacity - registered, 0);
+  const isFull = remaining === 0;
+
+  return (
+    <ParticipantChrome eventLabel="Event registration">
+      <main className="shell participant-main">
+        <div className="participant-card">
+          <header className="participant-event">
+            <h1>{event.title}</h1>
+            <ul className="participant-meta">
+              <li>{formatEventWhen(event.starts_at, event.ends_at)}</li>
+              {event.location ? <li>{event.location}</li> : null}
+              <li>
+                {event.capacity == null
+                  ? "Open registration"
+                  : isFull
+                    ? "Registration full"
+                    : `${remaining} of ${event.capacity} spots left`}
+              </li>
+            </ul>
+            {event.description ? (
+              <p className="participant-desc">{event.description}</p>
+            ) : null}
+          </header>
+
+          <section className="participant-form-block">
+            <h2>Register</h2>
+            <RegisterForm
+              eventId={event.id}
+              maxAdults={event.max_adults}
+              maxChildren={event.max_children}
+              disabled={isFull}
+              disabledReason="This event is full. Registration is closed."
+            />
+          </section>
+        </div>
+      </main>
+    </ParticipantChrome>
+  );
+}

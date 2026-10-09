@@ -1,0 +1,14 @@
+# Netlify deploy for Next.js App Router (standalone BSSB Events app).
+# Main site bssb.cz stays on its existing Netlify site; link/redirect later.
+
+[build]
+  command = "npm run build"
+  # Next.js on Netlify is handled by the OpenNext-based plugin; publish is managed by it.
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+  NEXT_TELEMETRY_DISABLED = "1"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
