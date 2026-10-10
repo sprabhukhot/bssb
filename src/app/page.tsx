@@ -1,11 +1,26 @@
 import Link from "next/link";
 import { SiteHeader } from "@/components/site-header";
+import { createClient } from "@/lib/supabase/server";
+import { DEFAULT_SITE_CONTENT, mergeSiteContent } from "@/lib/site-content";
 
-export default function HomePage() {
+export default async function HomePage() {
+  let content = DEFAULT_SITE_CONTENT;
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("site_content")
+      .select("*")
+      .eq("id", "home")
+      .maybeSingle();
+    if (!error && data) content = mergeSiteContent(data);
+  } catch {
+    // Missing env / table → static fallbacks
+  }
+
   return (
     <main className="landing">
       <SiteHeader
-        subtitle="Preserving & Celebrating Culture"
+        subtitle={content.subtitle}
         right={
           <Link className="btn btn-nav-active" href="/login">
             Organizer sign in
@@ -15,39 +30,32 @@ export default function HomePage() {
       <section className="hero-banner">
         <div className="hero-banner__veil">
           <div className="hero-banner__inner">
-            <h1>Bhartiya Sanskritik Sangh, Brno</h1>
-            <p>
-              Music, dance, language, and festivals—community gatherings where
-              we meet, celebrate, and welcome families in Brno.
-            </p>
+            <h1>{content.hero_headline}</h1>
+            <p>{content.hero_body}</p>
           </div>
         </div>
       </section>
       <section className="landing-about shell">
-        <h2>Events with BSSB</h2>
-        <p>
-          From Navratri and cultural evenings to seva and langar, BSSB brings
-          people together. Volunteers publish each gathering with a simple
-          registration link for guests—no accounts required for attendees.
-        </p>
+        <h2>{content.about_title}</h2>
+        <p>{content.about_body}</p>
         <ul className="landing-pillars">
           <li>
-            <strong>Gather</strong>
-            <span>Set the date, place, and welcome for your event</span>
+            <strong>{content.pillar_1_title}</strong>
+            <span>{content.pillar_1_body}</span>
           </li>
           <li>
-            <strong>Invite</strong>
-            <span>Share one link with friends, WhatsApp groups, and posters</span>
+            <strong>{content.pillar_2_title}</strong>
+            <span>{content.pillar_2_body}</span>
           </li>
           <li>
-            <strong>Celebrate</strong>
-            <span>See who is coming and keep the community close</span>
+            <strong>{content.pillar_3_title}</strong>
+            <span>{content.pillar_3_body}</span>
           </li>
         </ul>
       </section>
       <footer className="site-footer">
         <div className="shell">
-          © Bhartiya Sanskritik Sangh, Brno ·{" "}
+          {content.footer_text} ·{" "}
           <a href="https://bssb.cz/" rel="noreferrer">
             bssb.cz
           </a>

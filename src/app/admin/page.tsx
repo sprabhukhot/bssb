@@ -23,7 +23,8 @@ export default async function AdminEventsPage() {
           <h1 className="page-title">Our events</h1>
           <p className="page-lead">
             Prepare a gathering, publish when ready, and share the guest
-            registration link.
+            registration link. Homepage copy and the organizers list are managed
+            by the site admin only.
           </p>
         </div>
         <Link className="btn btn-primary" href="/admin/events/new">

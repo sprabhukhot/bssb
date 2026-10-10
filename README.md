@@ -8,11 +8,11 @@ Standalone events site for **Bhartiya Sanskritik Sangh, Brno** ([bssb.cz](https:
 
 Stack: **Next.js** + **Supabase** (free) → **Netlify** (free). Deploy as a **standalone** Netlify site alongside the main bssb.cz site.
 
-First organizer allowlist email: **`treasurer@bssb.cz`** (seeded in `supabase/schema.sql`).
+**Roles** (same Organizer sign-in): **`treasurer@bssb.cz`** is the sole **site admin** (homepage content + add organizers). Other `admin_emails` rows are **organizers** (events only). See Project store doc `docs/admin-and-content.md`.
 
 ## Quick start
 
-1. Create a Supabase project and run [`supabase/schema.sql`](./supabase/schema.sql) in the SQL Editor (seeds `treasurer@bssb.cz`).
+1. Create a Supabase project and run [`supabase/schema.sql`](./supabase/schema.sql) in the SQL Editor (or, on an existing DB, run `supabase/migrations/005_admin_role_site_content.sql`).
 2. Copy `.env.example` → `.env.local` and fill values.
 3. Configure Supabase Auth redirect URL: `{SITE_URL}/auth/callback`.
 4. `npm install && npm run dev`
@@ -50,12 +50,14 @@ No production URL is claimed until you complete the Netlify + Supabase steps abo
 
 | Path | Who | Purpose |
 |------|-----|---------|
-| `/` | Public | BSSB community events home |
-| `/login` | Volunteers | Magic-link sign-in |
-| `/admin` | Volunteers | Event list |
-| `/admin/events/new` | Organizers | Create event |
-| `/admin/events/[id]` | Organizers | Edit, attendees, duplicate, CSV |
-| `/admin/events/[id]/export` | Organizers | CSV download |
+| `/` | Public | BSSB community events home (from `site_content` + fallbacks) |
+| `/login` | Staff | Magic-link sign-in |
+| `/admin` | Admin + organizer | Event list |
+| `/admin/site` | Admin only | Edit homepage content |
+| `/admin/organizers` | Admin only | Add/remove allowlisted emails |
+| `/admin/events/new` | Admin + organizer | Create event |
+| `/admin/events/[id]` | Admin + organizer | Edit, attendees, duplicate, CSV |
+| `/admin/events/[id]/export` | Admin + organizer | CSV download |
 | `/e/[slug]` | Participants | Registration form (share link only) |
 | `/e/[slug]/thanks` | Participants | Confirmation |
 | `/preview/register` | Demo | Participant UI without Supabase |
