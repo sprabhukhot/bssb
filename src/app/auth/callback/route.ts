@@ -1,17 +1,76 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createServerClient } from "@supabase/ssr";
+import type { EmailOtpType } from "@supabase/supabase-js";
+import { NextResponse, type NextRequest } from "next/server";
+import { getSiteUrl, getSupabaseEnv } from "@/lib/env";
 
-export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+const OTP_TYPES: readonly EmailOtpType[] = [
+  "magiclink",
+  "email",
+  "signup",
+  "invite",
+  "recovery",
+  "email_change",
+];
+
+function safeNextPath(raw: string | null): string {
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/admin";
+  return raw;
+}
+
+function appOrigin(requestUrl: URL): string {
+  try {
+    if (process.env.NODE_ENV === "production") return getSiteUrl();
+  } catch {
+    // Misconfigured env — fall back to the request host.
+  }
+  return requestUrl.origin;
+}
+
+function isOtpType(value: string | null): value is EmailOtpType {
+  return !!value && (OTP_TYPES as readonly string[]).includes(value);
+}
+
+/**
+ * Completes magic-link / email OTP sign-in.
+ *
+ * Prefer `token_hash` + `type` (works in any browser that clicks the link).
+ * PKCE `code` exchange remains as a fallback for default ConfirmationURL emails,
+ * but that flow fails when the email is opened outside the requesting browser.
+ */
+export async function GET(request: NextRequest) {
+  const requestUrl = new URL(request.url);
+  const { searchParams } = requestUrl;
+  const origin = appOrigin(requestUrl);
+  const next = safeNextPath(searchParams.get("next"));
+  const token_hash = searchParams.get("token_hash");
+  const typeParam = searchParams.get("type");
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/admin";
 
-  if (code) {
-    const supabase = await createClient();
+  const successRedirect = NextResponse.redirect(`${origin}${next}`);
+  const { url, anonKey } = getSupabaseEnv();
+
+  const supabase = createServerClient(url, anonKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value, options }) => {
+          successRedirect.cookies.set(name, value, options);
+        });
+      },
+    },
+  });
+
+  if (token_hash && isOtpType(typeParam)) {
+    const { error } = await supabase.auth.verifyOtp({
+      type: typeParam,
+      token_hash,
+    });
+    if (!error) return successRedirect;
+  } else if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
-      return NextResponse.redirect(`${origin}${next}`);
-    }
+    if (!error) return successRedirect;
   }
 
   return NextResponse.redirect(`${origin}/login?error=auth`);

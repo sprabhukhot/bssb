@@ -11,7 +11,7 @@ export default async function LoginPage({
   const nextPath = params.next || "/admin";
   const initialError =
     params.error === "auth"
-      ? "Sign-in link expired or invalid. Request a new one."
+      ? "Sign-in link expired or invalid. Request one new magic link, open it once, and click Continue (old or prefetched links cannot be reused)."
       : undefined;
 
   return (

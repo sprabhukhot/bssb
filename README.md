@@ -14,12 +14,12 @@ Stack: **Next.js** + **Supabase** (free) → **Netlify** (free). Deploy as a **s
 
 1. Create a Supabase project and run [`supabase/schema.sql`](./supabase/schema.sql) in the SQL Editor (or, on an existing DB, run `supabase/migrations/005_admin_role_site_content.sql`).
 2. Copy `.env.example` → `.env.local` and fill values.
-3. Configure Supabase Auth redirect URL: `{SITE_URL}/auth/callback`.
+3. Configure Supabase Auth: Site URL + redirect `{SITE_URL}/auth/callback`, and Magic link email template with `token_hash` → `/auth/confirm` (see `docs/netlify-go-live.md`). Production: `https://events.bssb.cz`.
 4. `npm install && npm run dev`
 
-Full NGO-facing setup (accounts, Netlify deploy, env vars) is in the Project plan:
+Full NGO-facing setup (accounts, Netlify deploy, env vars) is in the Project plan / go-live docs:
 
-`docs/event-registration-plan.md`
+`docs/event-registration-plan.md` · `docs/netlify-go-live.md`
 
 ## Deploy (Netlify)
 
@@ -31,13 +31,11 @@ Full NGO-facing setup (accounts, Netlify deploy, env vars) is in the Project pla
    ```bash
    NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
-   NEXT_PUBLIC_SITE_URL=https://YOUR-SITE.netlify.app
+   NEXT_PUBLIC_SITE_URL=https://events.bssb.cz
    ```
 
-5. Deploy. Then set Supabase Auth **Site URL** + **Redirect URLs** to that Netlify URL (`…/auth/callback`).
-6. Later: from the existing bssb.cz Netlify site, add a nav link or redirect (e.g. `/events` → this app). Keep this app as its own Netlify site unless you intentionally merge sites.
-
-No production URL is claimed until you complete the Netlify + Supabase steps above.
+5. Deploy. Then set Supabase Auth **Site URL** = `https://events.bssb.cz` and **Redirect URLs** = `https://events.bssb.cz/auth/callback` (plus localhost for local). Never leave Site URL / `NEXT_PUBLIC_SITE_URL` on localhost in production.
+6. Later: from the existing bssb.cz Netlify site, add a nav link or redirect (e.g. `/events` → https://events.bssb.cz). Keep this app as its own Netlify site unless you intentionally merge sites.
 
 ## Scripts
 

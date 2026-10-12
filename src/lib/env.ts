@@ -16,3 +16,29 @@ export function getSupabaseEnv() {
   }
   return { url, anonKey };
 }
+
+/**
+ * Public site origin for magic-link redirects and absolute share URLs.
+ * Always prefer NEXT_PUBLIC_SITE_URL. Never fall back to localhost in production
+ * (that sends auth emails to http://localhost:3000 and breaks login).
+ */
+export function getSiteUrl(): string {
+  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, "");
+  if (configured) {
+    if (
+      process.env.NODE_ENV === "production" &&
+      /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/i.test(configured)
+    ) {
+      throw new Error(
+        "NEXT_PUBLIC_SITE_URL is set to localhost in production. Set it to https://events.bssb.cz in Netlify and redeploy.",
+      );
+    }
+    return configured;
+  }
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Missing NEXT_PUBLIC_SITE_URL. Set it to https://events.bssb.cz in Netlify environment variables and redeploy.",
+    );
+  }
+  return "http://localhost:3000";
+}
