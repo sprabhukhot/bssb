@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
+import { authFailureReason } from "@/lib/auth-errors";
 import { getSiteUrl, getSupabaseEnv } from "@/lib/env";
 
 const OTP_TYPES: readonly EmailOtpType[] = [
@@ -30,12 +31,18 @@ function isOtpType(value: string | null): value is EmailOtpType {
   return !!value && (OTP_TYPES as readonly string[]).includes(value);
 }
 
+/** Prefer declared type, then try email + magiclink (common Magic link templates). */
+function typesToTry(typeParam: string | null): EmailOtpType[] {
+  const preferred = isOtpType(typeParam) ? [typeParam] : [];
+  const fallback: EmailOtpType[] = ["email", "magiclink"];
+  return [...preferred, ...fallback.filter((t) => t !== typeParam)];
+}
+
 /**
  * Completes magic-link / email OTP sign-in.
  *
- * Prefer `token_hash` + `type` (works in any browser that clicks the link).
- * PKCE `code` exchange remains as a fallback for default ConfirmationURL emails,
- * but that flow fails when the email is opened outside the requesting browser.
+ * Prefer `token_hash` + `type` (email or magiclink). PKCE `code` remains a
+ * fallback for default ConfirmationURL emails, but that flow fails across browsers.
  */
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
@@ -62,16 +69,46 @@ export async function GET(request: NextRequest) {
     },
   });
 
-  if (token_hash && isOtpType(typeParam)) {
-    const { error } = await supabase.auth.verifyOtp({
-      type: typeParam,
-      token_hash,
-    });
-    if (!error) return successRedirect;
+  let lastMessage: string | null = null;
+
+  if (token_hash) {
+    if (typeParam && !isOtpType(typeParam)) {
+      console.info("[auth/callback] unrecognized otp type", {
+        type: typeParam.slice(0, 32),
+      });
+    }
+    for (const type of typesToTry(typeParam)) {
+      const { error } = await supabase.auth.verifyOtp({
+        type,
+        token_hash,
+      });
+      if (!error) {
+        console.info("[auth/callback] verifyOtp ok", { type });
+        return successRedirect;
+      }
+      lastMessage = error.message;
+      console.info("[auth/callback] verifyOtp failed", {
+        type,
+        code: error.code ?? null,
+      });
+    }
   } else if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) return successRedirect;
+    lastMessage = error.message;
+    console.info("[auth/callback] exchangeCodeForSession failed", {
+      code: error.code ?? null,
+    });
+  } else {
+    console.info("[auth/callback] missing token_hash and code");
   }
 
-  return NextResponse.redirect(`${origin}/login?error=auth`);
+  const reason = authFailureReason(lastMessage, {
+    usedCodeOnly: Boolean(code) && !token_hash,
+    missingToken: !token_hash && !code,
+    typeIssue: Boolean(token_hash && typeParam && !isOtpType(typeParam)),
+  });
+  return NextResponse.redirect(
+    `${origin}/login?error=auth&reason=${encodeURIComponent(reason)}`,
+  );
 }

@@ -14,7 +14,7 @@ Stack: **Next.js** + **Supabase** (free) → **Netlify** (free). Deploy as a **s
 
 1. Create a Supabase project and run [`supabase/schema.sql`](./supabase/schema.sql) in the SQL Editor (or, on an existing DB, run `supabase/migrations/005_admin_role_site_content.sql`).
 2. Copy `.env.example` → `.env.local` and fill values.
-3. Configure Supabase Auth: Site URL + redirect `{SITE_URL}/auth/callback`, and Magic link email template with `token_hash` → `/auth/confirm` (see `docs/netlify-go-live.md`). Production: `https://events.bssb.cz`.
+3. Configure Supabase Auth Site URL + redirect `{SITE_URL}/auth/callback`. Create organizer users with email + password (Auto Confirm) under Auth → Users — password is the primary `/login` method (see `docs/netlify-go-live.md`). Production: `https://events.bssb.cz`.
 4. `npm install && npm run dev`
 
 Full NGO-facing setup (accounts, Netlify deploy, env vars) is in the Project plan / go-live docs:
@@ -49,7 +49,7 @@ Full NGO-facing setup (accounts, Netlify deploy, env vars) is in the Project pla
 | Path | Who | Purpose |
 |------|-----|---------|
 | `/` | Public | BSSB community events home (from `site_content` + fallbacks) |
-| `/login` | Staff | Magic-link sign-in |
+| `/login` | Staff | Email + password sign-in (magic link optional) |
 | `/admin` | Admin + organizer | Event list |
 | `/admin/site` | Admin only | Edit homepage content |
 | `/admin/organizers` | Admin only | Add/remove allowlisted emails |
