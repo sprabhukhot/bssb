@@ -72,9 +72,12 @@ export async function GET(request: NextRequest) {
   let lastMessage: string | null = null;
 
   if (token_hash) {
+    // Capture before !isOtpType() — negated type predicate can narrow to `never`.
+    const typePreview =
+      typeof typeParam === "string" ? typeParam.slice(0, 32) : "";
     if (typeParam && !isOtpType(typeParam)) {
       console.info("[auth/callback] unrecognized otp type", {
-        type: typeParam.slice(0, 32),
+        type: typePreview,
       });
     }
     for (const type of typesToTry(typeParam)) {
