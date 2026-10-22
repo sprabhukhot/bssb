@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { slugify, toLocalInputValue } from "@/lib/utils";
+import { useMemo, useState } from "react";
+import { FormFieldBuilder } from "@/components/form-field-builder";
 import {
-  DEFAULT_MAX_ADULTS,
-  DEFAULT_MAX_CHILDREN,
-  type EventRow,
-} from "@/lib/types";
+  defaultFormFields,
+  parseFormFieldsJson,
+  type FormField,
+} from "@/lib/form-fields";
+import { MAX_POSTER_BYTES, type EventRow } from "@/lib/types";
+import { slugify, toLocalInputValue } from "@/lib/utils";
 
 type Props = {
   event?: EventRow;
@@ -17,16 +19,27 @@ type Props = {
 };
 
 export function EventForm({ event, action, submitLabel }: Props) {
+  const initialFields = useMemo(
+    () =>
+      event?.form_fields
+        ? parseFormFieldsJson(event.form_fields)
+        : defaultFormFields(),
+    [event?.form_fields],
+  );
   const [slug, setSlug] = useState(event?.slug ?? "");
   const [slugTouched, setSlugTouched] = useState(Boolean(event));
+  const [fields, setFields] = useState<FormField[]>(initialFields);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [removePoster, setRemovePoster] = useState(false);
 
   async function onSubmit(formData: FormData) {
     setPending(true);
     setError(null);
     setSaved(false);
+    formData.set("form_fields_json", JSON.stringify(fields));
+    if (removePoster) formData.set("remove_poster", "1");
     const result = await action(formData);
     setPending(false);
     if (result?.error) {
@@ -36,13 +49,8 @@ export function EventForm({ event, action, submitLabel }: Props) {
     if (result?.success) setSaved(true);
   }
 
-  const defaultMaxAdults =
-    event?.max_adults ?? (event ? "" : DEFAULT_MAX_ADULTS);
-  const defaultMaxChildren =
-    event?.max_children ?? (event ? "" : DEFAULT_MAX_CHILDREN);
-
   return (
-    <form action={onSubmit} className="stack-form">
+    <form action={onSubmit} className="stack-form" encType="multipart/form-data">
       <label className="field">
         <span>Title</span>
         <input
@@ -52,7 +60,7 @@ export function EventForm({ event, action, submitLabel }: Props) {
           onChange={(e) => {
             if (!slugTouched) setSlug(slugify(e.target.value));
           }}
-          placeholder="Brno Navratri Utsav 2026"
+          placeholder="Community gathering"
         />
       </label>
 
@@ -66,7 +74,7 @@ export function EventForm({ event, action, submitLabel }: Props) {
             setSlugTouched(true);
             setSlug(slugify(e.target.value));
           }}
-          placeholder="navratri-2026"
+          placeholder="spring-gathering"
         />
         <small className="hint">Public link: /e/{slug || "your-slug"}</small>
       </label>
@@ -86,7 +94,7 @@ export function EventForm({ event, action, submitLabel }: Props) {
         <input
           name="location"
           defaultValue={event?.location ?? ""}
-          placeholder="Cultural Center Líšeň - Dělňák"
+          placeholder="Venue name"
         />
       </label>
 
@@ -120,38 +128,40 @@ export function EventForm({ event, action, submitLabel }: Props) {
           placeholder="Blank = unlimited"
         />
         <small className="hint">
-          Headcount is flexible — leave blank if there is no fixed venue target.
+          Counts people from adults/children answers when present; otherwise each
+          form counts as 1. Leave blank for no limit.
         </small>
       </label>
 
-      <div className="field-grid">
-        <label className="field">
-          <span>Max adults / registration</span>
-          <input
-            type="number"
-            name="max_adults"
-            min={1}
-            defaultValue={defaultMaxAdults}
-            placeholder={`e.g. ${DEFAULT_MAX_ADULTS}`}
-          />
-          <small className="hint">
-            Navratri default {DEFAULT_MAX_ADULTS}. Blank = no fixed max.
-          </small>
-        </label>
-        <label className="field">
-          <span>Max children / registration</span>
-          <input
-            type="number"
-            name="max_children"
-            min={0}
-            defaultValue={defaultMaxChildren}
-            placeholder={`e.g. ${DEFAULT_MAX_CHILDREN}`}
-          />
-          <small className="hint">
-            Navratri default {DEFAULT_MAX_CHILDREN}. Blank = no fixed max.
-          </small>
-        </label>
-      </div>
+      <label className="field">
+        <span>Event poster (optional)</span>
+        <input
+          type="file"
+          name="poster"
+          accept="image/jpeg,image/png,image/webp"
+        />
+        <small className="hint">
+          JPG, PNG, or WebP · max {Math.round(MAX_POSTER_BYTES / (1024 * 1024))}
+          MB. Shown on the public registration page.
+        </small>
+      </label>
+      {event?.poster_url && !removePoster ? (
+        <div className="poster-preview">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={event.poster_url} alt="Current poster" />
+          <label className="check-field">
+            <input
+              type="checkbox"
+              checked={removePoster}
+              onChange={(e) => setRemovePoster(e.target.checked)}
+            />
+            <span>Remove current poster</span>
+          </label>
+        </div>
+      ) : null}
+
+      <FormFieldBuilder fields={fields} onChange={setFields} />
+      <input type="hidden" name="form_fields_json" value={JSON.stringify(fields)} readOnly />
 
       <label className="check-field">
         <input

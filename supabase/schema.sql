@@ -23,6 +23,13 @@ create table if not exists public.events (
   -- defaults below are Navratri-sensible for new events in the admin UI
   max_adults integer check (max_adults is null or max_adults >= 1),
   max_children integer check (max_children is null or max_children >= 0),
+  -- Per-event registration field schema (JSON array). App default: name + phone + email.
+  form_fields jsonb not null default '[
+    {"id":"full_name","type":"short_text","label":"Your name","required":true},
+    {"id":"phone","type":"phone","label":"Contact number","required":true,"helpText":"Required — one registration per phone."},
+    {"id":"email","type":"email","label":"Email","required":false,"helpText":"Optional"}
+  ]'::jsonb,
+  poster_url text,
   is_published boolean not null default false,
   created_by uuid references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
@@ -45,6 +52,7 @@ create table if not exists public.registrations (
   payment_acknowledged boolean not null default false,
   data_consent boolean not null default false,
   comments text,
+  answers jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   unique (event_id, phone)
 );
@@ -117,29 +125,31 @@ stable
 security definer
 set search_path = public
 as $$
-  select coalesce(sum(adults_count + children_count), 0)::integer
-  from public.registrations
-  where event_id = p_event_id;
+  select coalesce(sum(
+    case
+      when coalesce((r.answers ->> 'adults_count')::int, 0)
+         + coalesce((r.answers ->> 'children_count')::int, 0) > 0
+        then coalesce((r.answers ->> 'adults_count')::int, 0)
+           + coalesce((r.answers ->> 'children_count')::int, 0)
+      when coalesce(r.adults_count, 0) + coalesce(r.children_count, 0) > 0
+        then coalesce(r.adults_count, 0) + coalesce(r.children_count, 0)
+      else 1
+    end
+  ), 0)::integer
+  from public.registrations r
+  where r.event_id = p_event_id;
 $$;
 
 grant execute on function public.event_registration_count(uuid) to anon, authenticated;
 grant execute on function public.normalize_phone(text) to anon, authenticated;
 
+drop function if exists public.register_attendee(
+  uuid, text, text, text, integer, integer, integer, integer, integer, integer, integer, boolean, boolean, text
+);
+
 create or replace function public.register_attendee(
   p_event_id uuid,
-  p_full_name text,
-  p_email text,
-  p_phone text,
-  p_adults_count integer,
-  p_children_count integer,
-  p_dandiya_sets integer,
-  p_samosas integer,
-  p_kachoris integer,
-  p_teas integer,
-  p_jalebis integer,
-  p_payment_acknowledged boolean,
-  p_data_consent boolean,
-  p_comments text default null
+  p_answers jsonb
 )
 returns uuid
 language plpgsql
@@ -152,49 +162,124 @@ declare
   v_party integer;
   v_phone text;
   v_email text;
+  v_name text;
   v_id uuid;
-  v_max_adults integer;
-  v_max_children integer;
+  v_adults integer;
+  v_children integer;
+  v_field jsonb;
+  v_fid text;
+  v_ftype text;
+  v_required boolean;
+  v_label text;
+  v_raw text;
+  v_num numeric;
+  v_opts jsonb;
 begin
-  if p_payment_acknowledged is not true then
-    raise exception 'PAYMENT_ACK_REQUIRED';
-  end if;
-  if p_data_consent is not true then
-    raise exception 'CONSENT_REQUIRED';
-  end if;
-
-  v_phone := public.normalize_phone(p_phone);
-  if v_phone is null then
-    raise exception 'PHONE_REQUIRED';
-  end if;
-
-  v_email := nullif(lower(trim(coalesce(p_email, ''))), '');
-
-  if p_adults_count is null or p_adults_count < 1 then
-    raise exception 'INVALID_ADULTS';
-  end if;
-  if p_children_count is null or p_children_count < 0 then
-    raise exception 'INVALID_CHILDREN';
-  end if;
-
   select * into v_event from public.events where id = p_event_id;
   if not found or v_event.is_published is not true then
     raise exception 'EVENT_CLOSED';
   end if;
 
-  v_max_adults := coalesce(v_event.max_adults, 200);
-  v_max_children := coalesce(v_event.max_children, 200);
-  if p_adults_count > v_max_adults then
-    raise exception 'INVALID_ADULTS';
-  end if;
-  if p_children_count > v_max_children then
-    raise exception 'INVALID_CHILDREN';
+  if p_answers is null or jsonb_typeof(p_answers) <> 'object' then
+    raise exception 'INVALID_ANSWERS';
   end if;
 
-  v_party := p_adults_count + p_children_count;
+  -- Validate each configured field
+  for v_field in
+    select value from jsonb_array_elements(coalesce(v_event.form_fields, '[]'::jsonb))
+  loop
+    v_fid := v_field ->> 'id';
+    v_ftype := v_field ->> 'type';
+    v_required := coalesce((v_field ->> 'required')::boolean, false);
+    v_label := coalesce(v_field ->> 'label', v_fid);
+    v_raw := p_answers ->> v_fid;
+
+    if v_ftype = 'checkbox' then
+      if v_required and coalesce((p_answers ->> v_fid)::boolean, false) is not true
+         and lower(coalesce(v_raw, '')) not in ('true', 'on', 'yes', '1') then
+        raise exception 'FIELD_REQUIRED:%', v_label;
+      end if;
+      continue;
+    end if;
+
+    if v_required and (v_raw is null or trim(v_raw) = '') then
+      raise exception 'FIELD_REQUIRED:%', v_label;
+    end if;
+
+    if v_raw is null or trim(v_raw) = '' then
+      continue;
+    end if;
+
+    if v_ftype = 'email' and v_raw !~* '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$' then
+      raise exception 'INVALID_EMAIL';
+    end if;
+
+    if v_ftype = 'number' then
+      begin
+        v_num := trim(v_raw)::numeric;
+      exception when others then
+        raise exception 'INVALID_NUMBER:%', v_label;
+      end;
+      if (v_field ? 'min') and v_num < (v_field ->> 'min')::numeric then
+        raise exception 'INVALID_NUMBER:%', v_label;
+      end if;
+      if (v_field ? 'max') and v_num > (v_field ->> 'max')::numeric then
+        raise exception 'INVALID_NUMBER:%', v_label;
+      end if;
+    end if;
+
+    if v_ftype = 'dropdown' then
+      v_opts := coalesce(v_field -> 'options', '[]'::jsonb);
+      if jsonb_typeof(v_opts) = 'array'
+         and not exists (
+           select 1 from jsonb_array_elements_text(v_opts) o where o = v_raw
+         ) then
+        raise exception 'INVALID_OPTION:%', v_label;
+      end if;
+    end if;
+  end loop;
+
+  v_phone := public.normalize_phone(coalesce(p_answers ->> 'phone', ''));
+  if v_phone is null then
+    -- first phone-typed field
+    select public.normalize_phone(p_answers ->> (f ->> 'id'))
+      into v_phone
+    from jsonb_array_elements(coalesce(v_event.form_fields, '[]'::jsonb)) f
+    where f ->> 'type' = 'phone'
+    limit 1;
+  end if;
+  if v_phone is null then
+    raise exception 'PHONE_REQUIRED';
+  end if;
+
+  v_name := nullif(trim(coalesce(p_answers ->> 'full_name', '')), '');
+  if v_name is null then
+    select nullif(trim(p_answers ->> (f ->> 'id')), '')
+      into v_name
+    from jsonb_array_elements(coalesce(v_event.form_fields, '[]'::jsonb)) f
+    where f ->> 'type' = 'short_text'
+    limit 1;
+  end if;
+  if v_name is null then
+    raise exception 'NAME_REQUIRED';
+  end if;
+
+  v_email := nullif(lower(trim(coalesce(p_answers ->> 'email', ''))), '');
+
+  v_adults := coalesce((p_answers ->> 'adults_count')::int, 1);
+  v_children := coalesce((p_answers ->> 'children_count')::int, 0);
+  if v_adults < 0 then v_adults := 0; end if;
+  if v_children < 0 then v_children := 0; end if;
+
+  v_party := case
+    when coalesce((p_answers ->> 'adults_count')::int, 0)
+       + coalesce((p_answers ->> 'children_count')::int, 0) > 0
+      then coalesce((p_answers ->> 'adults_count')::int, 0)
+         + coalesce((p_answers ->> 'children_count')::int, 0)
+    else 1
+  end;
+
   select public.event_registration_count(p_event_id) into v_count;
-
-  -- capacity null = unlimited
   if v_event.capacity is not null and (v_count + v_party) > v_event.capacity then
     raise exception 'EVENT_FULL';
   end if;
@@ -203,23 +288,26 @@ begin
     event_id, full_name, email, phone,
     adults_count, children_count,
     dandiya_sets, samosas, kachoris, teas, jalebis,
-    payment_acknowledged, data_consent, comments
+    payment_acknowledged, data_consent, comments, answers
   )
   values (
     p_event_id,
-    trim(p_full_name),
+    v_name,
     v_email,
     v_phone,
-    p_adults_count,
-    p_children_count,
-    greatest(coalesce(p_dandiya_sets, 0), 0),
-    greatest(coalesce(p_samosas, 0), 0),
-    greatest(coalesce(p_kachoris, 0), 0),
-    greatest(coalesce(p_teas, 0), 0),
-    greatest(coalesce(p_jalebis, 0), 0),
-    true,
-    true,
-    nullif(trim(coalesce(p_comments, '')), '')
+    greatest(v_adults, 1),
+    greatest(v_children, 0),
+    greatest(coalesce((p_answers ->> 'dandiya_sets')::int, 0), 0),
+    greatest(coalesce((p_answers ->> 'samosas')::int, 0), 0),
+    greatest(coalesce((p_answers ->> 'kachoris')::int, 0), 0),
+    greatest(coalesce((p_answers ->> 'teas')::int, 0), 0),
+    greatest(coalesce((p_answers ->> 'jalebis')::int, 0), 0),
+    coalesce((p_answers ->> 'payment_acknowledged')::boolean, false)
+      or lower(coalesce(p_answers ->> 'payment_acknowledged', '')) in ('true','on','yes','1'),
+    coalesce((p_answers ->> 'data_consent')::boolean, false)
+      or lower(coalesce(p_answers ->> 'data_consent', '')) in ('true','on','yes','1'),
+    nullif(trim(coalesce(p_answers ->> 'comments', '')), ''),
+    p_answers
   )
   returning id into v_id;
 
@@ -230,9 +318,9 @@ exception
 end;
 $$;
 
-grant execute on function public.register_attendee(
-  uuid, text, text, text, integer, integer, integer, integer, integer, integer, integer, boolean, boolean, text
-) to anon, authenticated;
+grant execute on function public.register_attendee(uuid, jsonb) to anon, authenticated;
+
+
 
 alter table public.admin_emails enable row level security;
 alter table public.events enable row level security;
@@ -416,3 +504,8 @@ on conflict (email) do update set role = 'admin';
 -- Additional organizers (optional):
 -- insert into public.admin_emails (email, role) values ('another@bssb.cz', 'organizer')
 -- on conflict (email) do nothing;
+
+
+-- Storage: public bucket event-posters (2MB, jpg/png/webp). Prefer running
+-- supabase/migrations/006_custom_form_fields_and_posters.sql which creates the
+-- bucket + RLS policies. Dashboard fallback: Storage → New bucket → event-posters → Public.

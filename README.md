@@ -12,7 +12,7 @@ Stack: **Next.js** + **Supabase** (free) → **Netlify** (free). Deploy as a **s
 
 ## Quick start
 
-1. Create a Supabase project and run [`supabase/schema.sql`](./supabase/schema.sql) in the SQL Editor (or, on an existing DB, run `supabase/migrations/005_admin_role_site_content.sql`).
+1. Create a Supabase project and run [`supabase/schema.sql`](./supabase/schema.sql) in the SQL Editor (or apply migrations through `006_custom_form_fields_and_posters.sql`). Ensure Storage bucket `event-posters` is public (migration or Dashboard — see Project doc `docs/event-form-builder.md`).
 2. Copy `.env.example` → `.env.local` and fill values.
 3. Configure Supabase Auth Site URL + redirect `{SITE_URL}/auth/callback`. Create organizer users with email + password (Auto Confirm) under Auth → Users — password is the primary `/login` method (see `docs/netlify-go-live.md`). Production: `https://events.bssb.cz`.
 4. `npm install && npm run dev`
@@ -53,8 +53,8 @@ Full NGO-facing setup (accounts, Netlify deploy, env vars) is in the Project pla
 | `/admin` | Admin + organizer | Event list |
 | `/admin/site` | Admin only | Edit homepage content |
 | `/admin/organizers` | Admin only | Add/remove allowlisted emails |
-| `/admin/events/new` | Admin + organizer | Create event |
-| `/admin/events/[id]` | Admin + organizer | Edit, attendees, duplicate, CSV |
+| `/admin/events/new` | Admin + organizer | Create event, form builder, poster |
+| `/admin/events/[id]` | Admin + organizer | Edit form/poster, attendees, duplicate, CSV |
 | `/admin/events/[id]/export` | Admin + organizer | CSV download |
 | `/e/[slug]` | Participants | Registration form (share link only) |
 | `/e/[slug]/thanks` | Participants | Confirmation |

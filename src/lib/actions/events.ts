@@ -3,25 +3,26 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
-import { slugify } from "@/lib/utils";
 import {
-  DEFAULT_MAX_ADULTS,
-  DEFAULT_MAX_CHILDREN,
+  parseFormFieldsJson,
+  validateFormFieldsConfig,
+  type FormField,
+} from "@/lib/form-fields";
+import {
+  MAX_POSTER_BYTES,
+  POSTER_MIME_TYPES,
   type EventInput,
 } from "@/lib/types";
+import { slugify } from "@/lib/utils";
 
 function parseOptionalPositive(
   raw: string,
   label: string,
-  allowZero = false,
 ): number | null | { error: string } {
   if (!raw) return null;
   const n = Number(raw);
-  const min = allowZero ? 0 : 1;
-  if (!Number.isInteger(n) || n < min) {
-    return {
-      error: `${label} must be a whole number${allowZero ? " ≥ 0" : " ≥ 1"}, or blank.`,
-    };
+  if (!Number.isInteger(n) || n < 1) {
+    return { error: `${label} must be a whole number ≥ 1, or blank.` };
   }
   return n;
 }
@@ -34,12 +35,8 @@ function parseEventForm(formData: FormData): EventInput | { error: string } {
   const starts_at = String(formData.get("starts_at") ?? "").trim();
   const endsRaw = String(formData.get("ends_at") ?? "").trim();
   const capacityRaw = String(formData.get("capacity") ?? "").trim();
-  const maxAdultsRaw = String(formData.get("max_adults") ?? "").trim();
-  const maxChildrenRaw = String(formData.get("max_children") ?? "").trim();
   const is_published = formData.get("is_published") === "on";
-  const applyNavratriDefaults =
-    formData.get("apply_party_defaults") === "on" ||
-    formData.get("apply_party_defaults") === "1";
+  const formFields = parseFormFieldsJson(formData.get("form_fields_json"));
 
   if (!title) return { error: "Title is required." };
   if (!starts_at) return { error: "Start date/time is required." };
@@ -52,28 +49,8 @@ function parseEventForm(formData: FormData): EventInput | { error: string } {
     return capacity;
   }
 
-  let max_adults = parseOptionalPositive(maxAdultsRaw, "Max adults");
-  if (max_adults && typeof max_adults === "object" && "error" in max_adults) {
-    return max_adults;
-  }
-  let max_children = parseOptionalPositive(
-    maxChildrenRaw,
-    "Max children",
-    true,
-  );
-  if (
-    max_children &&
-    typeof max_children === "object" &&
-    "error" in max_children
-  ) {
-    return max_children;
-  }
-
-  // New events: Navratri-sensible defaults when fields left blank
-  if (applyNavratriDefaults) {
-    if (max_adults === null) max_adults = DEFAULT_MAX_ADULTS;
-    if (max_children === null) max_children = DEFAULT_MAX_CHILDREN;
-  }
+  const fieldsError = validateFormFieldsConfig(formFields);
+  if (fieldsError) return { error: fieldsError };
 
   return {
     title,
@@ -83,10 +60,58 @@ function parseEventForm(formData: FormData): EventInput | { error: string } {
     starts_at: new Date(starts_at).toISOString(),
     ends_at: endsRaw ? new Date(endsRaw).toISOString() : null,
     capacity: capacity as number | null,
-    max_adults: max_adults as number | null,
-    max_children: max_children as number | null,
+    max_adults: null,
+    max_children: null,
+    form_fields: formFields,
+    poster_url: null,
     is_published,
   };
+}
+
+async function uploadPoster(
+  supabase: Awaited<ReturnType<typeof requireAdmin>>["supabase"],
+  eventId: string,
+  formData: FormData,
+  currentUrl: string | null,
+): Promise<{ poster_url: string | null } | { error: string }> {
+  const remove = formData.get("remove_poster") === "1";
+  const file = formData.get("poster");
+
+  if (remove && !(file instanceof File && file.size > 0)) {
+    return { poster_url: null };
+  }
+
+  if (!(file instanceof File) || file.size === 0) {
+    return { poster_url: currentUrl };
+  }
+
+  if (file.size > MAX_POSTER_BYTES) {
+    return { error: "Poster must be 2 MB or smaller." };
+  }
+  if (!(POSTER_MIME_TYPES as readonly string[]).includes(file.type)) {
+    return { error: "Poster must be JPG, PNG, or WebP." };
+  }
+
+  const ext =
+    file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+  const path = `${eventId}/${Date.now()}.${ext}`;
+  const { error: uploadError } = await supabase.storage
+    .from("event-posters")
+    .upload(path, file, {
+      contentType: file.type,
+      upsert: true,
+    });
+
+  if (uploadError) {
+    console.info("[events] poster upload failed", { message: uploadError.message });
+    return {
+      error:
+        "Could not upload poster. Create a public Storage bucket named event-posters (see docs).",
+    };
+  }
+
+  const { data } = supabase.storage.from("event-posters").getPublicUrl(path);
+  return { poster_url: data.publicUrl };
 }
 
 export async function createEvent(formData: FormData) {
@@ -97,14 +122,26 @@ export async function createEvent(formData: FormData) {
     };
   }
 
-  // Prefer defaults on create when max fields blank
-  formData.set("apply_party_defaults", "1");
   const parsed = parseEventForm(formData);
   if ("error" in parsed) return parsed;
 
   const { data, error } = await supabase
     .from("events")
-    .insert({ ...parsed, created_by: user.id })
+    .insert({
+      title: parsed.title,
+      slug: parsed.slug,
+      description: parsed.description,
+      location: parsed.location,
+      starts_at: parsed.starts_at,
+      ends_at: parsed.ends_at,
+      capacity: parsed.capacity,
+      max_adults: parsed.max_adults,
+      max_children: parsed.max_children,
+      form_fields: parsed.form_fields,
+      poster_url: null,
+      is_published: parsed.is_published,
+      created_by: user.id,
+    })
     .select("id")
     .single();
 
@@ -113,6 +150,20 @@ export async function createEvent(formData: FormData) {
       return { error: "That slug is already in use. Choose another." };
     }
     return { error: error.message };
+  }
+
+  const poster = await uploadPoster(supabase, data.id, formData, null);
+  if ("error" in poster) {
+    // Event exists; surface upload issue but keep the event.
+    revalidatePath("/admin");
+    redirect(`/admin/events/${data.id}?poster_error=1`);
+  }
+
+  if (poster.poster_url) {
+    await supabase
+      .from("events")
+      .update({ poster_url: poster.poster_url })
+      .eq("id", data.id);
   }
 
   revalidatePath("/admin");
@@ -128,9 +179,34 @@ export async function updateEvent(eventId: string, formData: FormData) {
   const parsed = parseEventForm(formData);
   if ("error" in parsed) return parsed;
 
+  const { data: existing } = await supabase
+    .from("events")
+    .select("poster_url")
+    .eq("id", eventId)
+    .maybeSingle();
+
+  const poster = await uploadPoster(
+    supabase,
+    eventId,
+    formData,
+    existing?.poster_url ?? null,
+  );
+  if ("error" in poster) return poster;
+
   const { error } = await supabase
     .from("events")
-    .update(parsed)
+    .update({
+      title: parsed.title,
+      slug: parsed.slug,
+      description: parsed.description,
+      location: parsed.location,
+      starts_at: parsed.starts_at,
+      ends_at: parsed.ends_at,
+      capacity: parsed.capacity,
+      form_fields: parsed.form_fields as FormField[],
+      poster_url: poster.poster_url,
+      is_published: parsed.is_published,
+    })
     .eq("id", eventId);
 
   if (error) {
@@ -173,6 +249,8 @@ export async function duplicateEvent(eventId: string) {
     newSlug = `${source.slug}-copy-${i}`;
   }
 
+  const formFields = parseFormFieldsJson(source.form_fields);
+
   const { data, error } = await supabase
     .from("events")
     .insert({
@@ -185,6 +263,8 @@ export async function duplicateEvent(eventId: string) {
       capacity: source.capacity,
       max_adults: source.max_adults,
       max_children: source.max_children,
+      form_fields: formFields,
+      poster_url: source.poster_url,
       is_published: false,
       created_by: user.id,
     })

@@ -1,38 +1,124 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import {
+  parseFormFieldsJson,
+  type AnswersMap,
+  type FormField,
+} from "@/lib/form-fields";
 import { createClient } from "@/lib/supabase/server";
 import { normalizePhone } from "@/lib/utils";
-import { SAFETY_PARTY_CEILING } from "@/lib/types";
 
-function parseCount(
+function collectAnswers(
+  fields: FormField[],
   formData: FormData,
-  key: string,
-  min: number,
-  max: number,
-): number | null {
-  const raw = String(formData.get(key) ?? "").trim();
-  if (raw === "") return null;
-  const n = Number(raw);
-  if (!Number.isInteger(n) || n < min || n > max) return null;
-  return n;
+): { ok: true; answers: AnswersMap } | { ok: false; error: string } {
+  const answers: AnswersMap = {};
+
+  for (const field of fields) {
+    const key = `field_${field.id}`;
+    if (field.type === "checkbox") {
+      const on = formData.get(key) === "on";
+      if (field.required && !on) {
+        return { ok: false, error: `Please confirm: ${field.label}` };
+      }
+      answers[field.id] = on;
+      continue;
+    }
+
+    const raw = String(formData.get(key) ?? "").trim();
+    if (!raw) {
+      if (field.required) {
+        return { ok: false, error: `${field.label} is required.` };
+      }
+      continue;
+    }
+
+    if (field.type === "email") {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)) {
+        return {
+          ok: false,
+          error: `Enter a valid email for ${field.label}.`,
+        };
+      }
+      answers[field.id] = raw.toLowerCase();
+      continue;
+    }
+
+    if (field.type === "phone") {
+      const phone = normalizePhone(raw);
+      if (!phone) {
+        return { ok: false, error: `Enter a valid ${field.label}.` };
+      }
+      answers[field.id] = phone;
+      // Canonical key for RPC uniqueness
+      if (!answers.phone) answers.phone = phone;
+      continue;
+    }
+
+    if (field.type === "number") {
+      const n = Number(raw);
+      if (!Number.isFinite(n) || !Number.isInteger(n)) {
+        return { ok: false, error: `${field.label} must be a whole number.` };
+      }
+      if (field.min != null && n < field.min) {
+        return {
+          ok: false,
+          error: `${field.label} must be at least ${field.min}.`,
+        };
+      }
+      if (field.max != null && n > field.max) {
+        return {
+          ok: false,
+          error: `${field.label} must be at most ${field.max}.`,
+        };
+      }
+      answers[field.id] = n;
+      continue;
+    }
+
+    if (field.type === "dropdown") {
+      if (field.options?.length && !field.options.includes(raw)) {
+        return {
+          ok: false,
+          error: `Choose a valid option for ${field.label}.`,
+        };
+      }
+      answers[field.id] = raw;
+      continue;
+    }
+
+    answers[field.id] = raw;
+    if (
+      field.id === "full_name" ||
+      (!answers.full_name && field.type === "short_text")
+    ) {
+      if (!answers.full_name) answers.full_name = raw;
+    }
+  }
+
+  if (!answers.phone) {
+    return { ok: false, error: "A phone number is required." };
+  }
+  if (!answers.full_name) {
+    const firstText = fields.find((f) => f.type === "short_text");
+    if (firstText && answers[firstText.id] != null) {
+      answers.full_name = String(answers[firstText.id]);
+    }
+  }
+  if (!answers.full_name) {
+    return { ok: false, error: "A name is required." };
+  }
+
+  return { ok: true, answers };
 }
 
 export async function registerForEvent(eventId: string, formData: FormData) {
   const supabase = await createClient();
 
-  const full_name = String(formData.get("full_name") ?? "").trim();
-  const emailRaw = String(formData.get("email") ?? "").trim().toLowerCase();
-  const phone = normalizePhone(String(formData.get("phone") ?? ""));
-  const comments = String(formData.get("comments") ?? "").trim();
-  const payment_acknowledged = formData.get("payment_acknowledged") === "on";
-  const data_consent = formData.get("data_consent") === "on";
-
   const { data: event, error: eventError } = await supabase
     .from("events")
-    .select(
-      "id, slug, is_published, max_adults, max_children, capacity",
-    )
+    .select("id, slug, is_published, form_fields")
     .eq("id", eventId)
     .single();
 
@@ -40,71 +126,13 @@ export async function registerForEvent(eventId: string, formData: FormData) {
     return { error: "This event is not open for registration." };
   }
 
-  const maxAdults = event.max_adults ?? SAFETY_PARTY_CEILING;
-  const maxChildren = event.max_children ?? SAFETY_PARTY_CEILING;
-
-  const adults_count = parseCount(formData, "adults_count", 1, maxAdults);
-  const children_count = parseCount(
-    formData,
-    "children_count",
-    0,
-    maxChildren,
-  );
-  const dandiya_sets = parseCount(formData, "dandiya_sets", 0, 50);
-  const samosas = parseCount(formData, "samosas", 0, 50);
-  const kachoris = parseCount(formData, "kachoris", 0, 50);
-  const teas = parseCount(formData, "teas", 0, 50);
-  const jalebis = parseCount(formData, "jalebis", 0, 50);
-
-  if (!full_name) return { error: "Please enter your full name." };
-  if (emailRaw && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw)) {
-    return { error: "Please enter a valid email, or leave it blank." };
-  }
-  if (!phone) return { error: "Please enter a contact number." };
-  if (adults_count == null) {
-    return {
-      error: `Enter number of adults (1–${maxAdults}).`,
-    };
-  }
-  if (children_count == null) {
-    return {
-      error: `Enter number of children (0–${maxChildren}).`,
-    };
-  }
-  if (
-    dandiya_sets == null ||
-    samosas == null ||
-    kachoris == null ||
-    teas == null ||
-    jalebis == null
-  ) {
-    return { error: "Enter quantities for snacks / dandiya (use 0 if none)." };
-  }
-  if (!payment_acknowledged) {
-    return {
-      error:
-        "Please confirm that registration is valid only after payment is received.",
-    };
-  }
-  if (!data_consent) {
-    return { error: "Please consent to personal data processing to continue." };
-  }
+  const fields = parseFormFieldsJson(event.form_fields);
+  const collected = collectAnswers(fields, formData);
+  if (!collected.ok) return { error: collected.error };
 
   const { error } = await supabase.rpc("register_attendee", {
     p_event_id: eventId,
-    p_full_name: full_name,
-    p_email: emailRaw || null,
-    p_phone: phone,
-    p_adults_count: adults_count,
-    p_children_count: children_count,
-    p_dandiya_sets: dandiya_sets,
-    p_samosas: samosas,
-    p_kachoris: kachoris,
-    p_teas: teas,
-    p_jalebis: jalebis,
-    p_payment_acknowledged: payment_acknowledged,
-    p_data_consent: data_consent,
-    p_comments: comments || null,
+    p_answers: collected.answers,
   });
 
   if (error) {
@@ -120,20 +148,18 @@ export async function registerForEvent(eventId: string, formData: FormData) {
     if (msg.includes("EVENT_CLOSED")) {
       return { error: "This event is not open for registration." };
     }
-    if (msg.includes("PAYMENT_ACK_REQUIRED")) {
-      return { error: "Please acknowledge the payment confirmation rule." };
-    }
-    if (msg.includes("CONSENT_REQUIRED")) {
-      return { error: "Please consent to personal data processing." };
-    }
     if (msg.includes("PHONE_REQUIRED")) {
       return { error: "Please enter a contact number." };
     }
-    if (msg.includes("INVALID_ADULTS")) {
-      return { error: `Enter a valid adults count (1–${maxAdults}).` };
+    if (msg.includes("NAME_REQUIRED")) {
+      return { error: "Please enter your name." };
     }
-    if (msg.includes("INVALID_CHILDREN")) {
-      return { error: `Enter a valid children count (0–${maxChildren}).` };
+    if (msg.includes("INVALID_EMAIL")) {
+      return { error: "Please enter a valid email." };
+    }
+    if (msg.includes("FIELD_REQUIRED:")) {
+      const label = msg.split("FIELD_REQUIRED:")[1] ?? "a required field";
+      return { error: `Please complete: ${label}` };
     }
     return { error: error.message };
   }

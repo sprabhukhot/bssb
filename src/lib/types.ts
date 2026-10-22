@@ -1,3 +1,5 @@
+import type { FormField } from "@/lib/form-fields";
+
 export type EventRow = {
   id: string;
   slug: string;
@@ -9,6 +11,8 @@ export type EventRow = {
   capacity: number | null;
   max_adults: number | null;
   max_children: number | null;
+  form_fields: FormField[] | unknown;
+  poster_url: string | null;
   is_published: boolean;
   created_by: string | null;
   created_at: string;
@@ -31,6 +35,7 @@ export type RegistrationRow = {
   payment_acknowledged: boolean;
   data_consent: boolean;
   comments: string | null;
+  answers: Record<string, unknown> | null;
   created_at: string;
 };
 
@@ -44,10 +49,20 @@ export type EventInput = {
   capacity: number | null;
   max_adults: number | null;
   max_children: number | null;
+  form_fields: FormField[];
+  poster_url: string | null;
   is_published: boolean;
 };
 
-/** Navratri-sensible defaults when admin leaves party max blank on create. */
+/** @deprecated Prefer per-field min/max on form number fields. */
 export const DEFAULT_MAX_ADULTS = 10;
+/** @deprecated Prefer per-field min/max on form number fields. */
 export const DEFAULT_MAX_CHILDREN = 5;
 export const SAFETY_PARTY_CEILING = 200;
+
+export const MAX_POSTER_BYTES = 2 * 1024 * 1024;
+export const POSTER_MIME_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+] as const;

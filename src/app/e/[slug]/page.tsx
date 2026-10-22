@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { ParticipantChrome } from "@/components/participant-chrome";
 import { RegisterForm } from "@/components/register-form";
+import { parseFormFieldsJson } from "@/lib/form-fields";
 import { createClient } from "@/lib/supabase/server";
 import { formatEventWhen } from "@/lib/utils";
 
@@ -29,11 +30,18 @@ export default async function PublicEventPage({
   const remaining =
     event.capacity == null ? null : Math.max(event.capacity - registered, 0);
   const isFull = remaining === 0;
+  const fields = parseFormFieldsJson(event.form_fields);
 
   return (
     <ParticipantChrome eventLabel="Event registration">
       <main className="shell participant-main">
         <div className="participant-card">
+          {event.poster_url ? (
+            <div className="participant-poster">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={event.poster_url} alt="" />
+            </div>
+          ) : null}
           <header className="participant-event">
             <h1>{event.title}</h1>
             <ul className="participant-meta">
@@ -56,8 +64,7 @@ export default async function PublicEventPage({
             <h2>Register</h2>
             <RegisterForm
               eventId={event.id}
-              maxAdults={event.max_adults}
-              maxChildren={event.max_children}
+              fields={fields}
               disabled={isFull}
               disabledReason="This event is full. Registration is closed."
             />

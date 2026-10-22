@@ -7,18 +7,18 @@ export default function PreviewRegisterPage() {
         <div className="participant-card">
           <header className="participant-event">
             <p className="participant-demo-note">
-              Demo — the registration page guests see from a BSSB event share
-              link.
+              Demo — guests see only the fields the organizer configured for
+              this event (default: name, phone, optional email).
             </p>
-            <h1>Brno Navratri Utsav 2026</h1>
+            <h1>Community gathering</h1>
             <ul className="participant-meta">
-              <li>Sun, 11 Oct 2026, 5:00 pm</li>
-              <li>Cultural Center Líšeň - Dělňák, Brno</li>
+              <li>Sat, 1 Nov 2026, 5:00 pm</li>
+              <li>Brno</li>
               <li>Open registration</li>
             </ul>
             <p className="participant-desc">
-              Devotion, dance, music, and culture. Register your party, optional
-              snacks &amp; dandiya, then pay to confirm your spot.
+              Organizers design the registration form per event — snacks,
+              party size, or custom questions are optional fields they add.
             </p>
           </header>
 
@@ -38,71 +38,9 @@ export default function PreviewRegisterPage() {
               </label>
               <label className="field">
                 <span>Email (optional)</span>
-                <input
-                  name="email"
-                  type="email"
-                  placeholder="you@example.com"
-                  readOnly
-                />
+                <input name="email" type="email" placeholder="you@example.com" readOnly />
               </label>
-
-              <div className="form-section">
-                <p className="form-section__title">Attendance</p>
-                <div className="field-grid">
-                  <label className="field">
-                    <span>Adults (over 10 years)</span>
-                    <input type="number" defaultValue={2} readOnly />
-                  </label>
-                  <label className="field">
-                    <span>Children (under 10)</span>
-                    <input type="number" defaultValue={1} readOnly />
-                  </label>
-                </div>
-              </div>
-
-              <div className="form-section">
-                <p className="form-section__title">Optional snacks &amp; dandiya</p>
-                <div className="field-grid">
-                  {[
-                    ["Dandiya sets", 1],
-                    ["Samosas", 2],
-                    ["Kachoris", 0],
-                    ["Tea / chai", 2],
-                    ["Jalebi plates", 0],
-                  ].map(([label, val]) => (
-                    <label className="field" key={String(label)}>
-                      <span>{label}</span>
-                      <input type="number" defaultValue={Number(val)} readOnly />
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <label className="field">
-                <span>Comments (optional)</span>
-                <textarea
-                  rows={2}
-                  placeholder="Child ages, friends you paid for…"
-                  readOnly
-                />
-              </label>
-
-              <label className="check-field">
-                <input type="checkbox" defaultChecked readOnly />
-                <span>
-                  I understand registration is valid only after payment is
-                  received.
-                </span>
-              </label>
-              <label className="check-field">
-                <input type="checkbox" defaultChecked readOnly />
-                <span>
-                  I consent to BSSB processing my personal data for this and
-                  related event communication.
-                </span>
-              </label>
-
-              <button className="btn btn-primary" type="button">
+              <button className="btn btn-primary" type="button" disabled>
                 Register
               </button>
             </form>

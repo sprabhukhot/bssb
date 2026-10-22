@@ -917,6 +917,66 @@ table.data th {
   color: var(--slate-500);
 }
 
+.form-builder {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: var(--radius-md);
+  background: #fafafa;
+}
+
+.form-builder__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.form-builder__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.form-builder__item {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid #e5e7eb;
+  border-radius: var(--radius-md);
+  background: #fff;
+}
+
+.form-builder__item-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.poster-preview {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.poster-preview img,
+.participant-poster img {
+  width: 100%;
+  max-height: 320px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  border: 1px solid #e5e7eb;
+}
+
+.participant-poster {
+  margin: -0.25rem -0.25rem 1rem;
+}
+
 .empty {
   padding: 1.5rem 0;
   color: var(--slate-500);

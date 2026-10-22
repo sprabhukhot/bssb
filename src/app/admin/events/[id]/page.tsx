@@ -8,8 +8,12 @@ import {
   updateEvent,
 } from "@/lib/actions/events";
 import { requireAdmin } from "@/lib/auth";
+import {
+  answerDisplayValue,
+  parseFormFieldsJson,
+} from "@/lib/form-fields";
 import { formatEventWhen, publicEventUrl } from "@/lib/utils";
-import type { RegistrationRow } from "@/lib/types";
+import type { EventRow, RegistrationRow } from "@/lib/types";
 
 export default async function EditEventPage({
   params,
@@ -28,6 +32,9 @@ export default async function EditEventPage({
 
   if (!event) notFound();
 
+  const eventRow = event as EventRow;
+  const fields = parseFormFieldsJson(eventRow.form_fields);
+
   const { data: registrations } = await supabase
     .from("registrations")
     .select("*")
@@ -35,16 +42,22 @@ export default async function EditEventPage({
     .order("created_at", { ascending: false });
 
   const rows = (registrations ?? []) as RegistrationRow[];
-  const headcount = rows.reduce(
-    (sum, row) => sum + (row.adults_count ?? 0) + (row.children_count ?? 0),
-    0,
+  const headcount = rows.length;
+  const shareUrl = publicEventUrl(
+    eventRow.slug,
+    process.env.NEXT_PUBLIC_SITE_URL,
   );
-  const shareUrl = publicEventUrl(event.slug, process.env.NEXT_PUBLIC_SITE_URL);
 
   async function save(formData: FormData) {
     "use server";
     return updateEvent(id, formData);
   }
+
+  // Prefer a compact table: name/phone/email-ish + up to 4 extra fields + time
+  const extraFields = fields.filter(
+    (f) => !["full_name", "phone", "email"].includes(f.id),
+  );
+  const tableFields = extraFields.slice(0, 4);
 
   return (
     <>
@@ -52,23 +65,29 @@ export default async function EditEventPage({
         ← All events
       </Link>
       <h1 className="page-title" style={{ marginTop: "0.75rem" }}>
-        {event.title}
+        {eventRow.title}
       </h1>
       <p className="page-lead">
-        {formatEventWhen(event.starts_at, event.ends_at)}
-        {event.capacity == null ? " · Unlimited capacity" : ` · Cap ${event.capacity}`}
+        {formatEventWhen(eventRow.starts_at, eventRow.ends_at)}
+        {eventRow.capacity == null
+          ? " · Unlimited capacity"
+          : ` · Cap ${eventRow.capacity}`}
       </p>
 
       <ShareLinkCard
-        slug={event.slug}
+        slug={eventRow.slug}
         url={shareUrl}
-        isPublished={event.is_published}
+        isPublished={eventRow.is_published}
       />
 
       <div className="admin-grid split" style={{ marginTop: "1.25rem" }}>
         <div className="panel">
           <h2 style={{ marginTop: 0 }}>Edit event</h2>
-          <EventForm event={event} action={save} submitLabel="Save changes" />
+          <EventForm
+            event={eventRow}
+            action={save}
+            submitLabel="Save changes"
+          />
           <div className="row-actions" style={{ marginTop: "1rem" }}>
             <form
               action={async () => {
@@ -104,8 +123,8 @@ export default async function EditEventPage({
             }}
           >
             <h2 style={{ margin: 0 }}>
-              Attendees ({headcount} people / {rows.length} forms
-              {event.capacity != null ? ` · cap ${event.capacity}` : ""})
+              Attendees ({headcount} forms
+              {eventRow.capacity != null ? ` · cap ${eventRow.capacity}` : ""})
             </h2>
             <a className="btn btn-primary" href={`/admin/events/${id}/export`}>
               Export CSV
@@ -121,38 +140,49 @@ export default async function EditEventPage({
                   <tr>
                     <th>Name</th>
                     <th>Contact</th>
-                    <th>Party</th>
-                    <th>Snacks</th>
+                    {tableFields.map((f) => (
+                      <th key={f.id}>{f.label}</th>
+                    ))}
                     <th>Registered</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row) => (
-                    <tr key={row.id}>
-                      <td>
-                        <strong>{row.full_name}</strong>
-                        {row.comments ? (
-                          <div className="muted">{row.comments}</div>
-                        ) : null}
-                      </td>
-                      <td>
-                        <div>{row.phone}</div>
-                        <div className="muted">{row.email || "—"}</div>
-                      </td>
-                      <td>
-                        {row.adults_count}A + {row.children_count}C
-                      </td>
-                      <td className="muted">
-                        D{row.dandiya_sets} S{row.samosas} K{row.kachoris} T
-                        {row.teas} J{row.jalebis}
-                      </td>
-                      <td>
-                        {new Date(row.created_at).toLocaleString("en-IN", {
-                          timeZone: "Europe/Prague",
-                        })}
-                      </td>
-                    </tr>
-                  ))}
+                  {rows.map((row) => {
+                    const answers = (row.answers ?? {}) as Record<
+                      string,
+                      unknown
+                    >;
+                    return (
+                      <tr key={row.id}>
+                        <td>
+                          <strong>
+                            {answerDisplayValue(
+                              answers.full_name ?? row.full_name,
+                            )}
+                          </strong>
+                        </td>
+                        <td>
+                          <div>
+                            {answerDisplayValue(answers.phone ?? row.phone)}
+                          </div>
+                          <div className="muted">
+                            {answerDisplayValue(answers.email ?? row.email) ||
+                              "—"}
+                          </div>
+                        </td>
+                        {tableFields.map((f) => (
+                          <td key={f.id} className="muted">
+                            {answerDisplayValue(answers[f.id]) || "—"}
+                          </td>
+                        ))}
+                        <td>
+                          {new Date(row.created_at).toLocaleString("en-IN", {
+                            timeZone: "Europe/Prague",
+                          })}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
