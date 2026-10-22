@@ -21,13 +21,12 @@ export default async function LoginPage({
       }
     >
       <main className="shell portal-page">
-        <p className="portal-kicker">For BSSB volunteers</p>
+        <p className="portal-kicker">Restricted access</p>
         <h1 className="page-title">Organizer sign in</h1>
-        <p className="page-lead">
-          Sign in with your allowlisted email and password. Site admin:{" "}
-          <strong>treasurer@bssb.cz</strong> (homepage + organizers); other
-          allowlisted emails manage events only. Magic link is optional and
-          needs reliable email delivery.
+        <p className="notice notice-privacy" role="note">
+          This sign-in is for BSSB organizers only. Access is restricted.
+          Your login is used only to manage community events and is not shared
+          with attendees.
         </p>
         <div className="panel portal-panel" style={{ maxWidth: 440 }}>
           <LoginForm nextPath={nextPath} initialError={initialError} />

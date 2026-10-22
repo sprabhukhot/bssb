@@ -755,6 +755,13 @@ textarea {
   color: var(--ok);
 }
 
+.notice-privacy {
+  max-width: 440px;
+  background: #fff7ed;
+  color: var(--slate-700);
+  border: 1px solid #fed7aa;
+}
+
 .table-wrap {
   overflow-x: auto;
 }
