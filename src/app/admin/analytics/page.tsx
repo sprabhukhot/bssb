@@ -41,10 +41,6 @@ export default async function AnalyticsPage({
       <h1 className="page-title" style={{ marginTop: "0.75rem" }}>
         Analytics
       </h1>
-      <p className="page-lead">
-        Yearly totals across BSSB events. Per-event charts live on each event
-        page under the live counter.
-      </p>
       <AnnualAnalyticsPanel
         data={annual}
         years={years}

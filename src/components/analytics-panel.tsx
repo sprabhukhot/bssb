@@ -1,14 +1,14 @@
+import {
+  BreakdownBars,
+  TrendLineChart,
+  VerticalBarChart,
+} from "@/components/simple-charts";
 import type { AnnualAnalytics, EventAnalytics } from "@/lib/analytics";
 
 export function EventAnalyticsPanel({ data }: { data: EventAnalytics }) {
-  const maxDay = Math.max(1, ...data.byDay.map((d) => d.count));
-
   return (
     <section className="panel analytics-panel">
-      <h2 style={{ marginTop: 0 }}>Event analytics</h2>
-      <p className="muted" style={{ marginTop: 0 }}>
-        From Supabase registrations — no third-party analytics.
-      </p>
+      <h2 style={{ marginTop: 0 }}>Analytics</h2>
 
       <div className="analytics-summary">
         <div>
@@ -22,54 +22,21 @@ export function EventAnalyticsPanel({ data }: { data: EventAnalytics }) {
       </div>
 
       <h3>Registrations over time</h3>
-      {!data.byDay.length ? (
-        <p className="empty">No registrations yet.</p>
-      ) : (
-        <ul className="analytics-bars">
-          {data.byDay.map((bucket) => (
-            <li key={bucket.date}>
-              <span className="analytics-bars__label">{bucket.date}</span>
-              <span className="analytics-bars__track">
-                <span
-                  className="analytics-bars__fill"
-                  style={{ width: `${(bucket.count / maxDay) * 100}%` }}
-                />
-              </span>
-              <span className="analytics-bars__count">{bucket.count}</span>
-            </li>
-          ))}
-        </ul>
-      )}
+      <TrendLineChart
+        points={data.byDay.map((d) => ({ label: d.date, value: d.count }))}
+      />
 
-      {data.choiceBreakdowns.map((breakdown) => {
-        const max = Math.max(1, ...breakdown.options.map((o) => o.count));
-        return (
-          <div key={breakdown.fieldId} className="analytics-breakdown">
-            <h3>
-              {breakdown.fieldLabel}{" "}
-              <span className="muted">({breakdown.fieldType})</span>
-            </h3>
-            {!breakdown.options.length ? (
-              <p className="muted">No answers yet.</p>
-            ) : (
-              <ul className="analytics-bars">
-                {breakdown.options.map((opt) => (
-                  <li key={opt.key}>
-                    <span className="analytics-bars__label">{opt.label}</span>
-                    <span className="analytics-bars__track">
-                      <span
-                        className="analytics-bars__fill"
-                        style={{ width: `${(opt.count / max) * 100}%` }}
-                      />
-                    </span>
-                    <span className="analytics-bars__count">{opt.count}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        );
-      })}
+      {data.choiceBreakdowns.map((breakdown) => (
+        <div key={breakdown.fieldId} className="analytics-breakdown">
+          <h3>{breakdown.fieldLabel}</h3>
+          <BreakdownBars
+            points={breakdown.options.map((o) => ({
+              label: o.label,
+              value: o.count,
+            }))}
+          />
+        </div>
+      ))}
     </section>
   );
 }
@@ -85,15 +52,24 @@ export function AnnualAnalyticsPanel({
   selectedYear: number;
   basePath?: string;
 }) {
+  const monthLabels = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+
   return (
     <section className="panel analytics-panel">
       <div className="analytics-panel__head">
-        <div>
-          <h2 style={{ marginTop: 0 }}>Annual overview</h2>
-          <p className="muted" style={{ margin: 0 }}>
-            Combined totals across events that start in the selected year.
-          </p>
-        </div>
         <form method="get" action={basePath} className="analytics-year-form">
           <label className="field">
             <span>Year</span>
@@ -126,7 +102,23 @@ export function AnnualAnalyticsPanel({
         </div>
       </div>
 
-      <h3>Top events</h3>
+      <h3>Registrations by month</h3>
+      <TrendLineChart
+        points={data.byMonth.map((m) => ({
+          label: monthLabels[Number(m.month.slice(5, 7)) - 1] ?? m.month,
+          value: m.count,
+        }))}
+      />
+
+      <h3>Events by registrations</h3>
+      <VerticalBarChart
+        points={data.events.slice(0, 12).map((e) => ({
+          label: e.title,
+          value: e.formCount,
+        }))}
+      />
+
+      <h3>Events</h3>
       {!data.events.length ? (
         <p className="empty">No events in {data.year}.</p>
       ) : (

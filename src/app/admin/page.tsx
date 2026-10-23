@@ -21,13 +21,7 @@ export default async function AdminEventsPage() {
     <>
       <div className="admin-toolbar">
         <div>
-          <p className="portal-kicker">BSSB community events</p>
-          <h1 className="page-title">Our events</h1>
-          <p className="page-lead">
-            Prepare a gathering, publish when ready, and share the guest
-            registration link. Homepage copy and the organizers list are managed
-            by the site admin only.
-          </p>
+          <h1 className="page-title">Events</h1>
         </div>
         <Link className="btn btn-primary" href="/admin/events/new">
           New event

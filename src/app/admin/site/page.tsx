@@ -17,12 +17,7 @@ export default async function AdminSiteContentPage() {
 
   return (
     <>
-      <p className="portal-kicker">Site admin</p>
       <h1 className="page-title">Site content</h1>
-      <p className="page-lead">
-        Edit the public homepage. Changes appear for everyone—no Git or SQL
-        needed.
-      </p>
       <div className="panel portal-panel" style={{ maxWidth: 720 }}>
         <SiteContentForm initial={content} />
       </div>

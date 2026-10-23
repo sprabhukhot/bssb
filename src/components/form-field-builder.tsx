@@ -76,15 +76,9 @@ export function FormFieldBuilder({ fields, onChange }: Props) {
   return (
     <div className="form-builder">
       <div className="form-builder__head">
-        <div>
-          <p className="form-section__title" style={{ margin: 0 }}>
-            Registration form
-          </p>
-          <small className="hint">
-            Guests only see these fields. Include a phone field (unique per
-            event). Use Image / avatar choice for tap-friendly options.
-          </small>
-        </div>
+        <p className="form-section__title" style={{ margin: 0 }}>
+          Registration form
+        </p>
         <button
           type="button"
           className="btn btn-ghost"

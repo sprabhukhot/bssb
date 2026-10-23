@@ -55,8 +55,9 @@ Full NGO-facing setup (accounts, Netlify deploy, env vars) is in the Project pla
 | `/admin/site` | Admin only | Edit homepage content |
 | `/admin/organizers` | Admin only | Add/remove allowlisted emails |
 | `/admin/events/new` | Admin + organizer | Create event, form builder, poster |
-| `/admin/events/[id]` | Admin + organizer | Edit form/poster, analytics, attendees, CSV |
+| `/admin/events/[id]` | Admin + organizer | Edit form/poster, analytics, entry detail, exports |
 | `/admin/events/[id]/export` | Admin + organizer | CSV download |
+| `/admin/events/[id]/export.xlsx` | Admin + organizer | Excel (.xlsx) download |
 | `/e/[slug]` | Participants | Registration form (share link only) |
 | `/e/[slug]/thanks` | Participants | Confirmation |
 | `/preview/register` | Demo | Participant UI without Supabase |

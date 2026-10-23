@@ -96,12 +96,8 @@ export function LoginForm({
 
       <details style={{ marginTop: 8 }}>
         <summary style={{ cursor: "pointer", fontWeight: 600 }}>
-          Optional: magic link / email code
+          Magic link / email code
         </summary>
-        <p className="page-lead" style={{ margin: "12px 0 0", fontSize: "0.95rem" }}>
-          Needs the default Supabase mailer (often unreliable without custom
-          SMTP). Prefer password sign-in above.
-        </p>
         <form action={onSendLink} className="stack-form" style={{ marginTop: 12 }}>
           <input type="hidden" name="next" value={nextPath} />
           <input type="hidden" name="email" value={email} />

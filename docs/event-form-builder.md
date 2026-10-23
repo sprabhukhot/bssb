@@ -6,8 +6,10 @@ On **Edit event**, each image upload has optional **heading** and **body** field
 
 | Column | UI |
 | --- | --- |
-| `poster_heading` / `poster_body` | Shown next to the event poster on `/e/[slug]` |
-| `donation_heading` / `donation_body` | Shown next to the donation/QR image |
+| `poster_heading` / `poster_body` | Shown under the event poster on `/e/[slug]` |
+| `donation_heading` / `donation_body` | Shown under the donation/QR image |
+
+Public posters and donation images use the full content width (large on desktop, responsive on mobile).
 
 Apply migration `008_image_captions_choice_fields.sql` so these columns exist.
 
@@ -51,18 +53,26 @@ Choice definitions live in `events.form_fields` JSON as:
 
 Built-in avatar ids are defined in `src/lib/avatars.ts` (`lotus`, `diya`, `peacock`, …).
 
-## Attendee table & CSV
+## Entries, CSV, and Excel
 
-`/admin/events/[id]` and `/admin/events/[id]/export` resolve choice ids to labels (and emoji for avatars). Multi-select answers export as `; `-joined labels.
+On `/admin/events/[id]` under **Entries**:
+
+- Click a table row (or mobile card) to open a **detail view** of every answer.
+- **Export CSV** → `/admin/events/[id]/export`
+- **Export Excel** → `/admin/events/[id]/export.xlsx` (`.xlsx` via ExcelJS)
+
+Choice ids resolve to labels (and emoji for avatars). Multi-select answers export as `; `-joined labels.
 
 ## Analytics (no SaaS)
 
+Lightweight SVG charts — no paid analytics product.
+
 | Where | What |
 | --- | --- |
-| `/admin/events/[id]` — **Event analytics** panel | Forms, headcount, registrations-by-day bars, breakdowns for every choice/avatar field |
-| `/admin/analytics` — nav **Analytics** | Year selector, annual totals (events, registrations, headcount), top events table |
+| `/admin/events/[id]` — **Analytics** | Forms, headcount, registrations trend chart, choice/avatar breakdowns |
+| `/admin/analytics` — nav **Analytics** | Year selector, monthly trend, events-by-registrations chart, rollup table |
 
-All numbers come from Supabase `registrations` / `events` queries aggregated in `src/lib/analytics.ts`.
+Aggregated in `src/lib/analytics.ts` from Supabase `registrations` / `events`.
 
 ## SQL to run
 

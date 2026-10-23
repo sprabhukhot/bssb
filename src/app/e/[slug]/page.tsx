@@ -35,8 +35,7 @@ export default async function PublicEventPage({
   const timezone = event.timezone || DEFAULT_EVENT_TIMEZONE;
   const posterHeading = String(event.poster_heading ?? "").trim();
   const posterBody = String(event.poster_body ?? "").trim();
-  const donationHeading =
-    String(event.donation_heading ?? "").trim() || "Payment / donation";
+  const donationHeading = String(event.donation_heading ?? "").trim();
   const donationBody = String(event.donation_body ?? "").trim();
 
   return (
@@ -44,15 +43,19 @@ export default async function PublicEventPage({
       <main className="shell participant-main">
         <div className="participant-card">
           {event.poster_url || posterHeading || posterBody ? (
-            <section className="media-with-copy">
+            <section className="media-hero">
               {event.poster_url ? (
-                <div className="media-with-copy__media participant-poster">
+                <div className="media-hero__frame">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={event.poster_url} alt="" />
+                  <img
+                    className="media-hero__img"
+                    src={event.poster_url}
+                    alt=""
+                  />
                 </div>
               ) : null}
               {posterHeading || posterBody ? (
-                <div className="media-with-copy__text">
+                <div className="media-hero__copy">
                   {posterHeading ? <h2>{posterHeading}</h2> : null}
                   {posterBody ? <p>{posterBody}</p> : null}
                 </div>
@@ -80,28 +83,24 @@ export default async function PublicEventPage({
             ) : null}
           </header>
 
-          {event.donation_image_url || donationBody || event.donation_heading ? (
-            <section className="media-with-copy participant-donation">
+          {event.donation_image_url || donationBody || donationHeading ? (
+            <section className="media-hero media-hero--donation">
               {event.donation_image_url ? (
-                <div className="media-with-copy__media">
+                <div className="media-hero__frame media-hero__frame--contain">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
+                    className="media-hero__img"
                     src={event.donation_image_url}
-                    alt="Donation or payment details"
+                    alt={donationHeading || "Payment details"}
                   />
                 </div>
               ) : null}
-              <div className="media-with-copy__text">
-                <h2>{donationHeading}</h2>
-                {donationBody ? (
-                  <p>{donationBody}</p>
-                ) : (
-                  <p className="hint">
-                    Scan or use the details if payment is required for this
-                    event.
-                  </p>
-                )}
-              </div>
+              {donationHeading || donationBody ? (
+                <div className="media-hero__copy">
+                  {donationHeading ? <h2>{donationHeading}</h2> : null}
+                  {donationBody ? <p>{donationBody}</p> : null}
+                </div>
+              ) : null}
             </section>
           ) : null}
 

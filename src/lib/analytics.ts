@@ -30,12 +30,16 @@ export type AnnualEventStat = {
   headcount: number;
 };
 
+export type MonthBucket = { month: string; count: number };
+
 export type AnnualAnalytics = {
   year: number;
   eventCount: number;
   formCount: number;
   headcount: number;
   events: AnnualEventStat[];
+  /** Registrations by calendar month (YYYY-MM) within the year */
+  byMonth: MonthBucket[];
 };
 
 function dayKey(iso: string, timeZone: string): string {
@@ -120,6 +124,11 @@ export function buildAnnualAnalytics(
   for (const id of eventIds) byEvent.set(id, { formCount: 0, headcount: 0 });
 
   let headcount = 0;
+  const byMonthMap = new Map<string, number>();
+  for (let m = 1; m <= 12; m++) {
+    byMonthMap.set(`${year}-${String(m).padStart(2, "0")}`, 0);
+  }
+
   for (const row of regs) {
     const hc = registrationHeadcount(row.answers, row);
     headcount += hc;
@@ -127,6 +136,10 @@ export function buildAnnualAnalytics(
     cur.formCount += 1;
     cur.headcount += hc;
     byEvent.set(row.event_id, cur);
+    const month = row.created_at.slice(0, 7);
+    if (byMonthMap.has(month)) {
+      byMonthMap.set(month, (byMonthMap.get(month) ?? 0) + 1);
+    }
   }
 
   const eventStats: AnnualEventStat[] = inYear
@@ -142,12 +155,18 @@ export function buildAnnualAnalytics(
     })
     .sort((a, b) => b.formCount - a.formCount);
 
+  const byMonth = [...byMonthMap.entries()].map(([month, count]) => ({
+    month,
+    count,
+  }));
+
   return {
     year,
     eventCount: inYear.length,
     formCount: regs.length,
     headcount,
     events: eventStats,
+    byMonth,
   };
 }
 

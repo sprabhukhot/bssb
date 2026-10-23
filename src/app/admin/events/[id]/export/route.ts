@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
-import {
-  answerDisplayValue,
-  parseFormFieldsJson,
-} from "@/lib/form-fields";
+import { buildExportMatrix, resolveExportFields } from "@/lib/export-attendees";
 import { csvEscape } from "@/lib/utils";
 
 export async function GET(
@@ -27,7 +24,7 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const fields = parseFormFieldsJson(event.form_fields);
+  const fields = resolveExportFields(event.form_fields);
 
   const { data: rows, error } = await supabase
     .from("registrations")
@@ -39,21 +36,10 @@ export async function GET(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const header = [...fields.map((f) => f.label), "registered_at"];
+  const { headers, matrix } = buildExportMatrix(fields, rows ?? []);
   const lines = [
-    header.map(csvEscape).join(","),
-    ...(rows ?? []).map((row) => {
-      const answers = (row.answers ?? {}) as Record<string, unknown>;
-      const cells = fields.map((f) => {
-        let value = answers[f.id];
-        if (value == null && f.id === "full_name") value = row.full_name;
-        if (value == null && f.id === "email") value = row.email;
-        if (value == null && f.id === "phone") value = row.phone;
-        return csvEscape(answerDisplayValue(value, f));
-      });
-      cells.push(csvEscape(row.created_at));
-      return cells.join(",");
-    }),
+    headers.map(csvEscape).join(","),
+    ...matrix.map((row) => row.map(csvEscape).join(",")),
   ];
 
   const body = lines.join("\n");

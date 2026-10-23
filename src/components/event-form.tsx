@@ -183,8 +183,7 @@ export function EventForm({ event, action, submitLabel }: Props) {
           />
           <small className="hint">
             JPG, PNG, or WebP · max{" "}
-            {Math.round(MAX_IMAGE_BYTES / (1024 * 1024))}
-            MB. Shown at the top of the public page.
+            {Math.round(MAX_IMAGE_BYTES / (1024 * 1024))} MB
           </small>
         </label>
         {event?.poster_url && !removePoster ? (
@@ -232,8 +231,8 @@ export function EventForm({ event, action, submitLabel }: Props) {
             accept="image/jpeg,image/png,image/webp"
           />
           <small className="hint">
-            QR code or bank details image for guests (separate from the poster).
-            Same size limits.
+            JPG, PNG, or WebP · max{" "}
+            {Math.round(MAX_IMAGE_BYTES / (1024 * 1024))} MB
           </small>
         </label>
         {event?.donation_image_url && !removeDonation ? (
