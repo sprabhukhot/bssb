@@ -813,14 +813,6 @@ table.data th {
   gap: 0.5rem;
 }
 
-.admin-toolbar {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  align-items: end;
-  flex-wrap: wrap;
-}
-
 .share-card {
   margin-top: 0.5rem;
 }
@@ -851,6 +843,203 @@ table.data th {
   .admin-grid.split {
     grid-template-columns: 1.1fr 0.9fr;
     align-items: start;
+  }
+}
+
+.admin-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.admin-toolbar .btn {
+  flex-shrink: 0;
+}
+
+.live-counter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.15rem;
+  margin: 1rem 0;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, #fff7ed, #ffedd5);
+  border: 1px solid #fed7aa;
+}
+
+.live-counter__label {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--orange-700);
+}
+
+.live-counter__value {
+  margin: 0.15rem 0 0;
+  font-size: clamp(1.6rem, 4vw, 2rem);
+  font-weight: 800;
+  color: var(--ink);
+  line-height: 1.1;
+}
+
+.live-counter__unit {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--slate-500);
+}
+
+.attendees-panel__head {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+}
+
+.attendees-table-wrap {
+  margin-top: 0.5rem;
+}
+
+.attendee-cards,
+.event-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: none;
+  gap: 0.85rem;
+}
+
+.attendee-card {
+  border: 1px solid #e5e7eb;
+  border-radius: var(--radius-md);
+  padding: 0.9rem;
+  background: #fff;
+}
+
+.attendee-card dl {
+  margin: 0.65rem 0 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.attendee-card dt {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--slate-500);
+}
+
+.attendee-card dd {
+  margin: 0.1rem 0 0;
+  color: var(--ink);
+}
+
+.event-card__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.event-card__actions {
+  margin-top: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.qty-select {
+  min-height: 2.75rem;
+  font-size: 1.05rem;
+}
+
+.qty-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.qty-stepper__btn {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: var(--radius-md);
+  border: 1px solid #d1d5db;
+  background: #fff;
+  font-size: 1.35rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.qty-stepper__value {
+  min-width: 3rem;
+  text-align: center;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.participant-donation {
+  margin: 0 0 1.25rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.participant-donation img {
+  width: 100%;
+  max-width: 280px;
+  height: auto;
+  border-radius: var(--radius-md);
+  border: 1px solid #e5e7eb;
+  margin-top: 0.5rem;
+}
+
+.desktop-only {
+  display: block;
+}
+
+.mobile-only {
+  display: none;
+}
+
+@media (max-width: 800px) {
+  .desktop-only {
+    display: none !important;
+  }
+
+  .mobile-only,
+  .attendee-cards,
+  .event-cards {
+    display: grid;
+  }
+
+  .attendees-table-wrap {
+    display: none;
+  }
+
+  .admin-toolbar {
+    flex-direction: column;
+  }
+
+  .admin-toolbar .btn-primary {
+    width: 100%;
+    text-align: center;
+  }
+
+  .row-actions {
+    flex-wrap: wrap;
+  }
+
+  .live-counter {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .live-counter .btn {
+    width: 100%;
+    text-align: center;
   }
 }
 

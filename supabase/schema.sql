@@ -30,6 +30,8 @@ create table if not exists public.events (
     {"id":"email","type":"email","label":"Email","required":false,"helpText":"Optional"}
   ]'::jsonb,
   poster_url text,
+  donation_image_url text,
+  timezone text not null default 'Europe/Prague',
   is_published boolean not null default false,
   created_by uuid references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),

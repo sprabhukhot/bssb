@@ -1,14 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FormFieldBuilder } from "@/components/form-field-builder";
 import {
   defaultFormFields,
   parseFormFieldsJson,
   type FormField,
 } from "@/lib/form-fields";
-import { MAX_POSTER_BYTES, type EventRow } from "@/lib/types";
-import { slugify, toLocalInputValue } from "@/lib/utils";
+import {
+  DEFAULT_EVENT_TIMEZONE,
+  MAX_IMAGE_BYTES,
+  type EventRow,
+} from "@/lib/types";
+import {
+  detectBrowserTimeZone,
+  slugify,
+  toZonedInputValue,
+} from "@/lib/utils";
 
 type Props = {
   event?: EventRow;
@@ -29,17 +37,29 @@ export function EventForm({ event, action, submitLabel }: Props) {
   const [slug, setSlug] = useState(event?.slug ?? "");
   const [slugTouched, setSlugTouched] = useState(Boolean(event));
   const [fields, setFields] = useState<FormField[]>(initialFields);
+  const [timezone, setTimezone] = useState(
+    event?.timezone || DEFAULT_EVENT_TIMEZONE,
+  );
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [saved, setSaved] = useState(false);
   const [removePoster, setRemovePoster] = useState(false);
+  const [removeDonation, setRemoveDonation] = useState(false);
+
+  useEffect(() => {
+    if (!event?.timezone) {
+      setTimezone(detectBrowserTimeZone());
+    }
+  }, [event?.timezone]);
 
   async function onSubmit(formData: FormData) {
     setPending(true);
     setError(null);
     setSaved(false);
     formData.set("form_fields_json", JSON.stringify(fields));
+    formData.set("timezone", timezone);
     if (removePoster) formData.set("remove_poster", "1");
+    if (removeDonation) formData.set("remove_donation_image", "1");
     const result = await action(formData);
     setPending(false);
     if (result?.error) {
@@ -51,6 +71,8 @@ export function EventForm({ event, action, submitLabel }: Props) {
 
   return (
     <form action={onSubmit} className="stack-form" encType="multipart/form-data">
+      <input type="hidden" name="timezone" value={timezone} />
+
       <label className="field">
         <span>Title</span>
         <input
@@ -98,6 +120,20 @@ export function EventForm({ event, action, submitLabel }: Props) {
         />
       </label>
 
+      <label className="field">
+        <span>Timezone</span>
+        <input
+          name="timezone_display"
+          value={timezone}
+          onChange={(e) => setTimezone(e.target.value.trim() || DEFAULT_EVENT_TIMEZONE)}
+          placeholder={DEFAULT_EVENT_TIMEZONE}
+        />
+        <small className="hint">
+          Times below are in this zone (default {DEFAULT_EVENT_TIMEZONE} for
+          Brno). Detected from your browser when creating a new event.
+        </small>
+      </label>
+
       <div className="field-grid">
         <label className="field">
           <span>Starts</span>
@@ -105,7 +141,7 @@ export function EventForm({ event, action, submitLabel }: Props) {
             type="datetime-local"
             name="starts_at"
             required
-            defaultValue={toLocalInputValue(event?.starts_at)}
+            defaultValue={toZonedInputValue(event?.starts_at, timezone)}
           />
         </label>
         <label className="field">
@@ -113,7 +149,7 @@ export function EventForm({ event, action, submitLabel }: Props) {
           <input
             type="datetime-local"
             name="ends_at"
-            defaultValue={toLocalInputValue(event?.ends_at)}
+            defaultValue={toZonedInputValue(event?.ends_at, timezone)}
           />
         </label>
       </div>
@@ -126,10 +162,11 @@ export function EventForm({ event, action, submitLabel }: Props) {
           min={1}
           defaultValue={event?.capacity ?? ""}
           placeholder="Blank = unlimited"
+          inputMode="numeric"
         />
         <small className="hint">
           Counts people from adults/children answers when present; otherwise each
-          form counts as 1. Leave blank for no limit.
+          form counts as 1.
         </small>
       </label>
 
@@ -141,8 +178,8 @@ export function EventForm({ event, action, submitLabel }: Props) {
           accept="image/jpeg,image/png,image/webp"
         />
         <small className="hint">
-          JPG, PNG, or WebP · max {Math.round(MAX_POSTER_BYTES / (1024 * 1024))}
-          MB. Shown on the public registration page.
+          JPG, PNG, or WebP · max {Math.round(MAX_IMAGE_BYTES / (1024 * 1024))}
+          MB. Shown at the top of the public page.
         </small>
       </label>
       {event?.poster_url && !removePoster ? (
@@ -160,8 +197,40 @@ export function EventForm({ event, action, submitLabel }: Props) {
         </div>
       ) : null}
 
+      <label className="field">
+        <span>Donation / payment image (optional)</span>
+        <input
+          type="file"
+          name="donation_image"
+          accept="image/jpeg,image/png,image/webp"
+        />
+        <small className="hint">
+          QR code or bank details image for guests (separate from the poster).
+          Same size limits.
+        </small>
+      </label>
+      {event?.donation_image_url && !removeDonation ? (
+        <div className="poster-preview">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={event.donation_image_url} alt="Current donation image" />
+          <label className="check-field">
+            <input
+              type="checkbox"
+              checked={removeDonation}
+              onChange={(e) => setRemoveDonation(e.target.checked)}
+            />
+            <span>Remove donation image</span>
+          </label>
+        </div>
+      ) : null}
+
       <FormFieldBuilder fields={fields} onChange={setFields} />
-      <input type="hidden" name="form_fields_json" value={JSON.stringify(fields)} readOnly />
+      <input
+        type="hidden"
+        name="form_fields_json"
+        value={JSON.stringify(fields)}
+        readOnly
+      />
 
       <label className="check-field">
         <input

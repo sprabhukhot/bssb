@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 import { EventForm } from "@/components/event-form";
 import { ShareLinkCard } from "@/components/share-link-card";
 import {
@@ -12,7 +13,12 @@ import {
   answerDisplayValue,
   parseFormFieldsJson,
 } from "@/lib/form-fields";
-import { formatEventWhen, publicEventUrl } from "@/lib/utils";
+import { DEFAULT_EVENT_TIMEZONE } from "@/lib/timezone";
+import {
+  formatEventWhen,
+  publicEventUrl,
+  registrationHeadcount,
+} from "@/lib/utils";
 import type { EventRow, RegistrationRow } from "@/lib/types";
 
 export default async function EditEventPage({
@@ -34,6 +40,7 @@ export default async function EditEventPage({
 
   const eventRow = event as EventRow;
   const fields = parseFormFieldsJson(eventRow.form_fields);
+  const timezone = eventRow.timezone || DEFAULT_EVENT_TIMEZONE;
 
   const { data: registrations } = await supabase
     .from("registrations")
@@ -42,7 +49,11 @@ export default async function EditEventPage({
     .order("created_at", { ascending: false });
 
   const rows = (registrations ?? []) as RegistrationRow[];
-  const headcount = rows.length;
+  const formCount = rows.length;
+  const headcount = rows.reduce(
+    (sum, row) => sum + registrationHeadcount(row.answers, row),
+    0,
+  );
   const shareUrl = publicEventUrl(
     eventRow.slug,
     process.env.NEXT_PUBLIC_SITE_URL,
@@ -53,11 +64,15 @@ export default async function EditEventPage({
     return updateEvent(id, formData);
   }
 
-  // Prefer a compact table: name/phone/email-ish + up to 4 extra fields + time
-  const extraFields = fields.filter(
-    (f) => !["full_name", "phone", "email"].includes(f.id),
-  );
-  const tableFields = extraFields.slice(0, 4);
+  async function remove() {
+    "use server";
+    return deleteEvent(id);
+  }
+
+  const confirmMsg =
+    formCount > 0
+      ? `Delete “${eventRow.title}”? This permanently removes ${formCount} registration${formCount === 1 ? "" : "s"} and cannot be undone.`
+      : `Delete “${eventRow.title}”? This cannot be undone.`;
 
   return (
     <>
@@ -68,17 +83,136 @@ export default async function EditEventPage({
         {eventRow.title}
       </h1>
       <p className="page-lead">
-        {formatEventWhen(eventRow.starts_at, eventRow.ends_at)}
+        {formatEventWhen(eventRow.starts_at, eventRow.ends_at, timezone)}
         {eventRow.capacity == null
           ? " · Unlimited capacity"
           : ` · Cap ${eventRow.capacity}`}
       </p>
+
+      <section className="live-counter" aria-live="polite">
+        <div>
+          <p className="live-counter__label">Live registrations</p>
+          <p className="live-counter__value">
+            {formCount}{" "}
+            <span className="live-counter__unit">
+              form{formCount === 1 ? "" : "s"}
+            </span>
+          </p>
+        </div>
+        <div>
+          <p className="live-counter__label">People (headcount)</p>
+          <p className="live-counter__value">
+            {headcount}{" "}
+            <span className="live-counter__unit">
+              {eventRow.capacity != null ? `/ ${eventRow.capacity} cap` : "total"}
+            </span>
+          </p>
+        </div>
+        <a className="btn btn-primary" href={`/admin/events/${id}/export`}>
+          Export CSV
+        </a>
+      </section>
 
       <ShareLinkCard
         slug={eventRow.slug}
         url={shareUrl}
         isPublished={eventRow.is_published}
       />
+
+      <section className="panel attendees-panel" style={{ marginTop: "1.25rem" }}>
+        <div className="attendees-panel__head">
+          <h2 style={{ margin: 0 }}>All entries ({formCount})</h2>
+          <p className="muted" style={{ margin: 0 }}>
+            Full list of every answer — this is the source of truth (CSV export
+            available above).
+          </p>
+        </div>
+
+        {!rows.length ? (
+          <p className="empty">No registrations yet.</p>
+        ) : (
+          <>
+            <div className="table-wrap attendees-table-wrap">
+              <table className="data attendees-table">
+                <thead>
+                  <tr>
+                    {fields.map((f) => (
+                      <th key={f.id}>{f.label}</th>
+                    ))}
+                    <th>Registered</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => {
+                    const answers = (row.answers ?? {}) as Record<
+                      string,
+                      unknown
+                    >;
+                    return (
+                      <tr key={row.id}>
+                        {fields.map((f) => {
+                          let value = answers[f.id];
+                          if (value == null && f.id === "full_name")
+                            value = row.full_name;
+                          if (value == null && f.id === "email") value = row.email;
+                          if (value == null && f.id === "phone") value = row.phone;
+                          return (
+                            <td key={f.id}>
+                              {answerDisplayValue(value) || "—"}
+                            </td>
+                          );
+                        })}
+                        <td>
+                          {new Date(row.created_at).toLocaleString("en-GB", {
+                            timeZone: timezone,
+                          })}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <ul className="attendee-cards">
+              {rows.map((row) => {
+                const answers = (row.answers ?? {}) as Record<string, unknown>;
+                return (
+                  <li key={row.id} className="attendee-card">
+                    <strong>
+                      {answerDisplayValue(answers.full_name ?? row.full_name) ||
+                        "Guest"}
+                    </strong>
+                    <dl>
+                      {fields.map((f) => {
+                        let value = answers[f.id];
+                        if (value == null && f.id === "full_name")
+                          value = row.full_name;
+                        if (value == null && f.id === "email") value = row.email;
+                        if (value == null && f.id === "phone") value = row.phone;
+                        return (
+                          <div key={f.id}>
+                            <dt>{f.label}</dt>
+                            <dd>{answerDisplayValue(value) || "—"}</dd>
+                          </div>
+                        );
+                      })}
+                      <div>
+                        <dt>Registered</dt>
+                        <dd>
+                          {new Date(row.created_at).toLocaleString("en-GB", {
+                            timeZone: timezone,
+                          })}
+                        </dd>
+                      </div>
+                    </dl>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
+      </section>
 
       <div className="admin-grid split" style={{ marginTop: "1.25rem" }}>
         <div className="panel">
@@ -99,94 +233,12 @@ export default async function EditEventPage({
                 Duplicate event
               </button>
             </form>
-            <form
-              action={async () => {
-                "use server";
-                await deleteEvent(id);
-              }}
-            >
-              <button className="btn btn-danger" type="submit">
-                Delete
-              </button>
-            </form>
+            <ConfirmDeleteButton
+              action={remove}
+              label="Delete event"
+              confirmMessage={confirmMsg}
+            />
           </div>
-        </div>
-
-        <div className="panel">
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: "0.75rem",
-              alignItems: "center",
-              flexWrap: "wrap",
-            }}
-          >
-            <h2 style={{ margin: 0 }}>
-              Attendees ({headcount} forms
-              {eventRow.capacity != null ? ` · cap ${eventRow.capacity}` : ""})
-            </h2>
-            <a className="btn btn-primary" href={`/admin/events/${id}/export`}>
-              Export CSV
-            </a>
-          </div>
-
-          {!rows.length ? (
-            <p className="empty">No registrations yet.</p>
-          ) : (
-            <div className="table-wrap" style={{ marginTop: "1rem" }}>
-              <table className="data">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Contact</th>
-                    {tableFields.map((f) => (
-                      <th key={f.id}>{f.label}</th>
-                    ))}
-                    <th>Registered</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row) => {
-                    const answers = (row.answers ?? {}) as Record<
-                      string,
-                      unknown
-                    >;
-                    return (
-                      <tr key={row.id}>
-                        <td>
-                          <strong>
-                            {answerDisplayValue(
-                              answers.full_name ?? row.full_name,
-                            )}
-                          </strong>
-                        </td>
-                        <td>
-                          <div>
-                            {answerDisplayValue(answers.phone ?? row.phone)}
-                          </div>
-                          <div className="muted">
-                            {answerDisplayValue(answers.email ?? row.email) ||
-                              "—"}
-                          </div>
-                        </td>
-                        {tableFields.map((f) => (
-                          <td key={f.id} className="muted">
-                            {answerDisplayValue(answers[f.id]) || "—"}
-                          </td>
-                        ))}
-                        <td>
-                          {new Date(row.created_at).toLocaleString("en-IN", {
-                            timeZone: "Europe/Prague",
-                          })}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
         </div>
       </div>
     </>

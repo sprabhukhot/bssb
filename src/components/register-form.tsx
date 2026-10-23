@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { QuantityField } from "@/components/quantity-field";
 import { registerForEvent } from "@/lib/actions/registrations";
 import type { FormField } from "@/lib/form-fields";
 
@@ -46,15 +47,6 @@ export function RegisterForm({
 
 function DynamicField({ field }: { field: FormField }) {
   const name = `field_${field.id}`;
-  const label = (
-    <>
-      <span>
-        {field.label}
-        {field.required ? "" : " (optional)"}
-      </span>
-      {field.helpText ? <small className="hint">{field.helpText}</small> : null}
-    </>
-  );
 
   if (field.type === "checkbox") {
     return (
@@ -64,6 +56,30 @@ function DynamicField({ field }: { field: FormField }) {
       </label>
     );
   }
+
+  if (field.type === "number") {
+    return (
+      <QuantityField
+        name={name}
+        label={field.label}
+        hint={field.helpText}
+        min={field.min ?? 0}
+        max={field.max ?? 50}
+        defaultValue={field.required ? (field.min ?? 0) : field.min ?? 0}
+        required={field.required}
+      />
+    );
+  }
+
+  const label = (
+    <>
+      <span>
+        {field.label}
+        {field.required ? "" : " (optional)"}
+      </span>
+      {field.helpText ? <small className="hint">{field.helpText}</small> : null}
+    </>
+  );
 
   if (field.type === "long_text") {
     return (
@@ -88,23 +104,6 @@ function DynamicField({ field }: { field: FormField }) {
             </option>
           ))}
         </select>
-      </label>
-    );
-  }
-
-  if (field.type === "number") {
-    return (
-      <label className="field">
-        {label}
-        <input
-          type="number"
-          name={name}
-          required={field.required}
-          min={field.min}
-          max={field.max}
-          step={1}
-          defaultValue={field.required ? (field.min ?? 0) : undefined}
-        />
       </label>
     );
   }

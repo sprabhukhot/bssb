@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { ParticipantChrome } from "@/components/participant-chrome";
 import { RegisterForm } from "@/components/register-form";
 import { parseFormFieldsJson } from "@/lib/form-fields";
+import { DEFAULT_EVENT_TIMEZONE } from "@/lib/timezone";
 import { createClient } from "@/lib/supabase/server";
 import { formatEventWhen } from "@/lib/utils";
 
@@ -31,6 +32,7 @@ export default async function PublicEventPage({
     event.capacity == null ? null : Math.max(event.capacity - registered, 0);
   const isFull = remaining === 0;
   const fields = parseFormFieldsJson(event.form_fields);
+  const timezone = event.timezone || DEFAULT_EVENT_TIMEZONE;
 
   return (
     <ParticipantChrome eventLabel="Event registration">
@@ -45,7 +47,9 @@ export default async function PublicEventPage({
           <header className="participant-event">
             <h1>{event.title}</h1>
             <ul className="participant-meta">
-              <li>{formatEventWhen(event.starts_at, event.ends_at)}</li>
+              <li>
+                {formatEventWhen(event.starts_at, event.ends_at, timezone)}
+              </li>
               {event.location ? <li>{event.location}</li> : null}
               <li>
                 {event.capacity == null
@@ -59,6 +63,21 @@ export default async function PublicEventPage({
               <p className="participant-desc">{event.description}</p>
             ) : null}
           </header>
+
+          {event.donation_image_url ? (
+            <section className="participant-donation">
+              <h2>Payment / donation</h2>
+              <p className="hint">
+                Scan or use the details below if payment is required for this
+                event.
+              </p>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={event.donation_image_url}
+                alt="Donation or payment details"
+              />
+            </section>
+          ) : null}
 
           <section className="participant-form-block">
             <h2>Register</h2>
