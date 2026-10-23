@@ -40,6 +40,12 @@ function parseEventForm(formData: FormData): EventInput | { error: string } {
   const timezone = timezoneRaw || DEFAULT_EVENT_TIMEZONE;
   const is_published = formData.get("is_published") === "on";
   const formFields = parseFormFieldsJson(formData.get("form_fields_json"));
+  const poster_heading = String(formData.get("poster_heading") ?? "").trim();
+  const poster_body = String(formData.get("poster_body") ?? "").trim();
+  const donation_heading = String(
+    formData.get("donation_heading") ?? "",
+  ).trim();
+  const donation_body = String(formData.get("donation_body") ?? "").trim();
 
   if (!title) return { error: "Title is required." };
   if (!startsRaw) return { error: "Start date/time is required." };
@@ -77,7 +83,11 @@ function parseEventForm(formData: FormData): EventInput | { error: string } {
     max_children: null,
     form_fields: formFields,
     poster_url: null,
+    poster_heading,
+    poster_body,
     donation_image_url: null,
+    donation_heading,
+    donation_body,
     is_published,
   };
 }
@@ -162,7 +172,11 @@ export async function createEvent(formData: FormData) {
       max_children: parsed.max_children,
       form_fields: parsed.form_fields,
       poster_url: null,
+      poster_heading: parsed.poster_heading,
+      poster_body: parsed.poster_body,
       donation_image_url: null,
+      donation_heading: parsed.donation_heading,
+      donation_body: parsed.donation_body,
       is_published: parsed.is_published,
       created_by: user.id,
     })
@@ -260,7 +274,11 @@ export async function updateEvent(eventId: string, formData: FormData) {
       capacity: parsed.capacity,
       form_fields: parsed.form_fields as FormField[],
       poster_url: poster.url,
+      poster_heading: parsed.poster_heading,
+      poster_body: parsed.poster_body,
       donation_image_url: donation.url,
+      donation_heading: parsed.donation_heading,
+      donation_body: parsed.donation_body,
       is_published: parsed.is_published,
     })
     .eq("id", eventId);
@@ -322,7 +340,11 @@ export async function duplicateEvent(eventId: string) {
       max_children: source.max_children,
       form_fields: formFields,
       poster_url: source.poster_url,
+      poster_heading: source.poster_heading ?? "",
+      poster_body: source.poster_body ?? "",
       donation_image_url: source.donation_image_url,
+      donation_heading: source.donation_heading ?? "",
+      donation_body: source.donation_body ?? "",
       is_published: false,
       created_by: user.id,
     })

@@ -25,6 +25,9 @@ export default async function AdminLayout({
               <Link className="btn btn-nav-active" href="/admin">
                 Events
               </Link>
+              <Link className="btn btn-ghost" href="/admin/analytics">
+                Analytics
+              </Link>
               {isSiteAdmin ? (
                 <>
                   <Link className="btn btn-ghost" href="/admin/site">

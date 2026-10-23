@@ -170,59 +170,104 @@ export function EventForm({ event, action, submitLabel }: Props) {
         </small>
       </label>
 
-      <label className="field">
-        <span>Event poster (optional)</span>
-        <input
-          type="file"
-          name="poster"
-          accept="image/jpeg,image/png,image/webp"
-        />
-        <small className="hint">
-          JPG, PNG, or WebP · max {Math.round(MAX_IMAGE_BYTES / (1024 * 1024))}
-          MB. Shown at the top of the public page.
-        </small>
-      </label>
-      {event?.poster_url && !removePoster ? (
-        <div className="poster-preview">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={event.poster_url} alt="Current poster" />
-          <label className="check-field">
-            <input
-              type="checkbox"
-              checked={removePoster}
-              onChange={(e) => setRemovePoster(e.target.checked)}
-            />
-            <span>Remove current poster</span>
-          </label>
-        </div>
-      ) : null}
+      <div className="image-content-block">
+        <p className="form-section__title" style={{ margin: 0 }}>
+          Event poster
+        </p>
+        <label className="field">
+          <span>Poster image (optional)</span>
+          <input
+            type="file"
+            name="poster"
+            accept="image/jpeg,image/png,image/webp"
+          />
+          <small className="hint">
+            JPG, PNG, or WebP · max{" "}
+            {Math.round(MAX_IMAGE_BYTES / (1024 * 1024))}
+            MB. Shown at the top of the public page.
+          </small>
+        </label>
+        {event?.poster_url && !removePoster ? (
+          <div className="poster-preview">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={event.poster_url} alt="Current poster" />
+            <label className="check-field">
+              <input
+                type="checkbox"
+                checked={removePoster}
+                onChange={(e) => setRemovePoster(e.target.checked)}
+              />
+              <span>Remove current poster</span>
+            </label>
+          </div>
+        ) : null}
+        <label className="field">
+          <span>Poster heading (optional)</span>
+          <input
+            name="poster_heading"
+            defaultValue={event?.poster_heading ?? ""}
+            placeholder="Shown next to the poster"
+          />
+        </label>
+        <label className="field">
+          <span>Poster body (optional)</span>
+          <textarea
+            name="poster_body"
+            rows={3}
+            defaultValue={event?.poster_body ?? ""}
+            placeholder="Caption or details next to the poster image"
+          />
+        </label>
+      </div>
 
-      <label className="field">
-        <span>Donation / payment image (optional)</span>
-        <input
-          type="file"
-          name="donation_image"
-          accept="image/jpeg,image/png,image/webp"
-        />
-        <small className="hint">
-          QR code or bank details image for guests (separate from the poster).
-          Same size limits.
-        </small>
-      </label>
-      {event?.donation_image_url && !removeDonation ? (
-        <div className="poster-preview">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={event.donation_image_url} alt="Current donation image" />
-          <label className="check-field">
-            <input
-              type="checkbox"
-              checked={removeDonation}
-              onChange={(e) => setRemoveDonation(e.target.checked)}
-            />
-            <span>Remove donation image</span>
-          </label>
-        </div>
-      ) : null}
+      <div className="image-content-block">
+        <p className="form-section__title" style={{ margin: 0 }}>
+          Donation / payment image
+        </p>
+        <label className="field">
+          <span>Donation image (optional)</span>
+          <input
+            type="file"
+            name="donation_image"
+            accept="image/jpeg,image/png,image/webp"
+          />
+          <small className="hint">
+            QR code or bank details image for guests (separate from the poster).
+            Same size limits.
+          </small>
+        </label>
+        {event?.donation_image_url && !removeDonation ? (
+          <div className="poster-preview">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={event.donation_image_url} alt="Current donation image" />
+            <label className="check-field">
+              <input
+                type="checkbox"
+                checked={removeDonation}
+                onChange={(e) => setRemoveDonation(e.target.checked)}
+              />
+              <span>Remove donation image</span>
+            </label>
+          </div>
+        ) : null}
+        <label className="field">
+          <span>Donation heading (optional)</span>
+          <input
+            name="donation_heading"
+            defaultValue={event?.donation_heading ?? ""}
+            placeholder="Payment / donation"
+          />
+        </label>
+        <label className="field">
+          <span>Donation body (optional)</span>
+          <textarea
+            name="donation_body"
+            rows={3}
+            defaultValue={event?.donation_body ?? ""}
+            placeholder="Instructions shown next to the QR or payment image"
+          />
+        </label>
+      </div>
 
       <FormFieldBuilder fields={fields} onChange={setFields} />
       <input

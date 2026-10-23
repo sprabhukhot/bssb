@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { QuantityField } from "@/components/quantity-field";
+import { getAvatar } from "@/lib/avatars";
 import { registerForEvent } from "@/lib/actions/registrations";
-import type { FormField } from "@/lib/form-fields";
+import type { ChoiceOption, FormField } from "@/lib/form-fields";
 
 export function RegisterForm({
   eventId,
@@ -47,6 +48,7 @@ export function RegisterForm({
 
 function DynamicField({ field }: { field: FormField }) {
   const name = `field_${field.id}`;
+  const choices = field.choices ?? [];
 
   if (field.type === "checkbox") {
     return (
@@ -98,13 +100,63 @@ function DynamicField({ field }: { field: FormField }) {
           <option value="" disabled>
             Select…
           </option>
-          {(field.options ?? []).map((opt) => (
-            <option key={opt} value={opt}>
-              {opt}
+          {choices.map((opt) => (
+            <option key={opt.id} value={opt.id}>
+              {opt.label}
             </option>
           ))}
         </select>
       </label>
+    );
+  }
+
+  if (field.type === "single_choice") {
+    return (
+      <fieldset className="choice-field">
+        <legend>{label}</legend>
+        <div className="choice-pills">
+          {choices.map((opt) => (
+            <label key={opt.id} className="choice-pill">
+              <input
+                type="radio"
+                name={name}
+                value={opt.id}
+                required={field.required}
+              />
+              <span>{opt.label}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+    );
+  }
+
+  if (field.type === "multi_choice") {
+    return (
+      <fieldset className="choice-field">
+        <legend>{label}</legend>
+        <div className="choice-pills">
+          {choices.map((opt) => (
+            <label key={opt.id} className="choice-pill">
+              <input type="checkbox" name={name} value={opt.id} />
+              <span>{opt.label}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+    );
+  }
+
+  if (field.type === "image_choice") {
+    return (
+      <fieldset className="choice-field">
+        <legend>{label}</legend>
+        <div className="avatar-grid" role="radiogroup" aria-label={field.label}>
+          {choices.map((opt) => (
+            <ImageChoiceOption key={opt.id} name={name} option={opt} required={field.required} />
+          ))}
+        </div>
+      </fieldset>
     );
   }
 
@@ -128,6 +180,42 @@ function DynamicField({ field }: { field: FormField }) {
                 : undefined
         }
       />
+    </label>
+  );
+}
+
+function ImageChoiceOption({
+  name,
+  option,
+  required,
+}: {
+  name: string;
+  option: ChoiceOption;
+  required: boolean;
+}) {
+  const avatar = getAvatar(option.avatarId);
+  return (
+    <label className="avatar-option">
+      <input
+        type="radio"
+        name={name}
+        value={option.id}
+        required={required}
+      />
+      <span className="avatar-option__face">
+        {option.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={option.imageUrl} alt="" />
+        ) : (
+          <span
+            className="avatar-chip"
+            data-avatar={option.avatarId ?? "star"}
+          >
+            {avatar?.emoji ?? "⭐"}
+          </span>
+        )}
+      </span>
+      <span className="avatar-option__label">{option.label}</span>
     </label>
   );
 }

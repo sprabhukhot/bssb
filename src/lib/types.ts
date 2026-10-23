@@ -15,7 +15,11 @@ export type EventRow = {
   max_children: number | null;
   form_fields: FormField[] | unknown;
   poster_url: string | null;
+  poster_heading?: string | null;
+  poster_body?: string | null;
   donation_image_url: string | null;
+  donation_heading?: string | null;
+  donation_body?: string | null;
   is_published: boolean;
   created_by: string | null;
   created_at: string;
@@ -55,7 +59,11 @@ export type EventInput = {
   max_children: number | null;
   form_fields: FormField[];
   poster_url: string | null;
+  poster_heading: string;
+  poster_body: string;
   donation_image_url: string | null;
+  donation_heading: string;
+  donation_body: string;
   is_published: boolean;
 };
 

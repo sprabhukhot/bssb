@@ -2,12 +2,17 @@
 
 import { redirect } from "next/navigation";
 import {
+  isChoiceFieldType,
   parseFormFieldsJson,
   type AnswersMap,
   type FormField,
 } from "@/lib/form-fields";
 import { createClient } from "@/lib/supabase/server";
 import { normalizePhone } from "@/lib/utils";
+
+function choiceIds(field: FormField): Set<string> {
+  return new Set((field.choices ?? []).map((c) => c.id));
+}
 
 function collectAnswers(
   fields: FormField[],
@@ -17,12 +22,32 @@ function collectAnswers(
 
   for (const field of fields) {
     const key = `field_${field.id}`;
+
     if (field.type === "checkbox") {
       const on = formData.get(key) === "on";
       if (field.required && !on) {
         return { ok: false, error: `Please confirm: ${field.label}` };
       }
       answers[field.id] = on;
+      continue;
+    }
+
+    if (field.type === "multi_choice") {
+      const selected = formData
+        .getAll(key)
+        .map((v) => String(v).trim())
+        .filter(Boolean);
+      const allowed = choiceIds(field);
+      if (selected.some((id) => !allowed.has(id))) {
+        return {
+          ok: false,
+          error: `Choose a valid option for ${field.label}.`,
+        };
+      }
+      if (field.required && selected.length === 0) {
+        return { ok: false, error: `${field.label} is required.` };
+      }
+      if (selected.length) answers[field.id] = selected;
       continue;
     }
 
@@ -51,7 +76,6 @@ function collectAnswers(
         return { ok: false, error: `Enter a valid ${field.label}.` };
       }
       answers[field.id] = phone;
-      // Canonical key for RPC uniqueness
       if (!answers.phone) answers.phone = phone;
       continue;
     }
@@ -77,8 +101,11 @@ function collectAnswers(
       continue;
     }
 
-    if (field.type === "dropdown") {
-      if (field.options?.length && !field.options.includes(raw)) {
+    if (isChoiceFieldType(field.type)) {
+      const allowed = choiceIds(field);
+      // Accept choice id, or legacy label (older dropdown events)
+      const labels = new Set((field.choices ?? []).map((c) => c.label));
+      if (!allowed.has(raw) && !labels.has(raw)) {
         return {
           ok: false,
           error: `Choose a valid option for ${field.label}.`,
@@ -160,6 +187,10 @@ export async function registerForEvent(eventId: string, formData: FormData) {
     if (msg.includes("FIELD_REQUIRED:")) {
       const label = msg.split("FIELD_REQUIRED:")[1] ?? "a required field";
       return { error: `Please complete: ${label}` };
+    }
+    if (msg.includes("INVALID_OPTION:")) {
+      const label = msg.split("INVALID_OPTION:")[1] ?? "a field";
+      return { error: `Choose a valid option for ${label}` };
     }
     return { error: error.message };
   }

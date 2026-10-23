@@ -9,6 +9,8 @@ import {
   updateEvent,
 } from "@/lib/actions/events";
 import { requireAdmin } from "@/lib/auth";
+import { EventAnalyticsPanel } from "@/components/analytics-panel";
+import { buildEventAnalytics } from "@/lib/analytics";
 import {
   answerDisplayValue,
   parseFormFieldsJson,
@@ -58,6 +60,7 @@ export default async function EditEventPage({
     eventRow.slug,
     process.env.NEXT_PUBLIC_SITE_URL,
   );
+  const analytics = buildEventAnalytics(rows, fields, timezone);
 
   async function save(formData: FormData) {
     "use server";
@@ -119,6 +122,10 @@ export default async function EditEventPage({
         isPublished={eventRow.is_published}
       />
 
+      <div style={{ marginTop: "1.25rem" }}>
+        <EventAnalyticsPanel data={analytics} />
+      </div>
+
       <section className="panel attendees-panel" style={{ marginTop: "1.25rem" }}>
         <div className="attendees-panel__head">
           <h2 style={{ margin: 0 }}>All entries ({formCount})</h2>
@@ -158,7 +165,7 @@ export default async function EditEventPage({
                           if (value == null && f.id === "phone") value = row.phone;
                           return (
                             <td key={f.id}>
-                              {answerDisplayValue(value) || "—"}
+                              {answerDisplayValue(value, f) || "—"}
                             </td>
                           );
                         })}
@@ -193,7 +200,7 @@ export default async function EditEventPage({
                         return (
                           <div key={f.id}>
                             <dt>{f.label}</dt>
-                            <dd>{answerDisplayValue(value) || "—"}</dd>
+                            <dd>{answerDisplayValue(value, f) || "—"}</dd>
                           </div>
                         );
                       })}

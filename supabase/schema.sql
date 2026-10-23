@@ -30,7 +30,11 @@ create table if not exists public.events (
     {"id":"email","type":"email","label":"Email","required":false,"helpText":"Optional"}
   ]'::jsonb,
   poster_url text,
+  poster_heading text not null default '',
+  poster_body text not null default '',
   donation_image_url text,
+  donation_heading text not null default '',
+  donation_body text not null default '',
   timezone text not null default 'Europe/Prague',
   is_published boolean not null default false,
   created_by uuid references auth.users (id) on delete set null,
@@ -204,6 +208,18 @@ begin
       continue;
     end if;
 
+    -- Multi-select: value is a JSON array of choice ids
+    if v_ftype = 'multi_choice' then
+      if jsonb_typeof(p_answers -> v_fid) = 'array' then
+        if v_required and jsonb_array_length(p_answers -> v_fid) = 0 then
+          raise exception 'FIELD_REQUIRED:%', v_label;
+        end if;
+      elsif v_required then
+        raise exception 'FIELD_REQUIRED:%', v_label;
+      end if;
+      continue;
+    end if;
+
     if v_required and (v_raw is null or trim(v_raw) = '') then
       raise exception 'FIELD_REQUIRED:%', v_label;
     end if;
@@ -230,13 +246,25 @@ begin
       end if;
     end if;
 
-    if v_ftype = 'dropdown' then
-      v_opts := coalesce(v_field -> 'options', '[]'::jsonb);
-      if jsonb_typeof(v_opts) = 'array'
-         and not exists (
-           select 1 from jsonb_array_elements_text(v_opts) o where o = v_raw
-         ) then
-        raise exception 'INVALID_OPTION:%', v_label;
+    -- Choice fields: accept choice id, choice label, or legacy options[] string
+    if v_ftype in ('dropdown', 'single_choice', 'image_choice') then
+      if not (
+        exists (
+          select 1
+          from jsonb_array_elements(coalesce(v_field -> 'choices', '[]'::jsonb)) c
+          where c ->> 'id' = v_raw or c ->> 'label' = v_raw
+        )
+        or exists (
+          select 1
+          from jsonb_array_elements_text(coalesce(v_field -> 'options', '[]'::jsonb)) o
+          where o = v_raw
+        )
+      ) then
+        -- Only enforce when options/choices are present
+        v_opts := coalesce(v_field -> 'choices', v_field -> 'options', '[]'::jsonb);
+        if jsonb_typeof(v_opts) = 'array' and jsonb_array_length(v_opts) > 0 then
+          raise exception 'INVALID_OPTION:%', v_label;
+        end if;
       end if;
     end if;
   end loop;

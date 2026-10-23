@@ -49,7 +49,7 @@ export async function GET(
         if (value == null && f.id === "full_name") value = row.full_name;
         if (value == null && f.id === "email") value = row.email;
         if (value == null && f.id === "phone") value = row.phone;
-        return csvEscape(answerDisplayValue(value));
+        return csvEscape(answerDisplayValue(value, f));
       });
       cells.push(csvEscape(row.created_at));
       return cells.join(",");

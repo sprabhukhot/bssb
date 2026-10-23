@@ -3,10 +3,17 @@
 import {
   FORM_FIELD_TYPES,
   defaultFormFields,
+  emptyChoicesForType,
+  isChoiceFieldType,
+  newChoice,
   newFieldId,
+  type ChoiceOption,
   type FormField,
   type FormFieldType,
 } from "@/lib/form-fields";
+import { FUN_AVATARS } from "@/lib/avatars";
+import { createClient } from "@/lib/supabase/client";
+import { IMAGE_MIME_TYPES, MAX_IMAGE_BYTES } from "@/lib/types";
 
 type Props = {
   fields: FormField[];
@@ -15,7 +22,14 @@ type Props = {
 
 export function FormFieldBuilder({ fields, onChange }: Props) {
   function updateAt(index: number, patch: Partial<FormField>) {
-    const next = fields.map((f, i) => (i === index ? { ...f, ...patch } : f));
+    const next = fields.map((f, i) => {
+      if (i !== index) return f;
+      const merged = { ...f, ...patch };
+      if (merged.choices) {
+        merged.options = merged.choices.map((c) => c.label);
+      }
+      return merged;
+    });
     onChange(next);
   }
 
@@ -47,9 +61,13 @@ export function FormFieldBuilder({ fields, onChange }: Props) {
           ? "Contact number"
           : type === "email"
             ? "Email"
-            : "New question",
+            : type === "image_choice"
+              ? "Pick your avatar"
+              : "New question",
       required: type === "phone" || type === "short_text",
-      ...(type === "dropdown" ? { options: ["Option 1", "Option 2"] } : {}),
+      ...(isChoiceFieldType(type)
+        ? { choices: emptyChoicesForType(type) }
+        : {}),
       ...(type === "number" ? { min: 0, max: 100 } : {}),
     };
     onChange([...fields, field]);
@@ -64,7 +82,7 @@ export function FormFieldBuilder({ fields, onChange }: Props) {
           </p>
           <small className="hint">
             Guests only see these fields. Include a phone field (unique per
-            event). Reset restores name + phone + optional email.
+            event). Use Image / avatar choice for tap-friendly options.
           </small>
         </div>
         <button
@@ -94,10 +112,15 @@ export function FormFieldBuilder({ fields, onChange }: Props) {
                   onChange={(e) => {
                     const type = e.target.value as FormFieldType;
                     const patch: Partial<FormField> = { type };
-                    if (type === "dropdown" && !field.options?.length) {
-                      patch.options = ["Option 1", "Option 2"];
+                    if (isChoiceFieldType(type)) {
+                      patch.choices =
+                        field.choices?.length
+                          ? field.choices
+                          : emptyChoicesForType(type);
+                    } else {
+                      patch.choices = undefined;
+                      patch.options = undefined;
                     }
-                    if (type !== "dropdown") patch.options = undefined;
                     if (type !== "number") {
                       patch.min = undefined;
                       patch.max = undefined;
@@ -129,22 +152,11 @@ export function FormFieldBuilder({ fields, onChange }: Props) {
               />
             </label>
 
-            {field.type === "dropdown" ? (
-              <label className="field">
-                <span>Options (one per line)</span>
-                <textarea
-                  rows={3}
-                  value={(field.options ?? []).join("\n")}
-                  onChange={(e) =>
-                    updateAt(index, {
-                      options: e.target.value
-                        .split("\n")
-                        .map((o) => o.trim())
-                        .filter(Boolean),
-                    })
-                  }
-                />
-              </label>
+            {isChoiceFieldType(field.type) ? (
+              <ChoiceOptionsEditor
+                field={field}
+                onChange={(choices) => updateAt(index, { choices })}
+              />
             ) : null}
 
             {field.type === "number" ? (
@@ -223,12 +235,170 @@ export function FormFieldBuilder({ fields, onChange }: Props) {
         ))}
       </ul>
 
+      <div className="form-builder__add-row">
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => addField("short_text")}
+        >
+          Add field
+        </button>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={() => addField("image_choice")}
+        >
+          Add image / avatar choice
+        </button>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={() => addField("single_choice")}
+        >
+          Add multiple choice
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ChoiceOptionsEditor({
+  field,
+  onChange,
+}: {
+  field: FormField;
+  onChange: (choices: ChoiceOption[]) => void;
+}) {
+  const choices = field.choices ?? [];
+  const isImage = field.type === "image_choice";
+
+  function updateChoice(i: number, patch: Partial<ChoiceOption>) {
+    onChange(choices.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
+  }
+
+  function removeChoice(i: number) {
+    onChange(choices.filter((_, idx) => idx !== i));
+  }
+
+  async function uploadOptionImage(i: number, file: File | null) {
+    if (!file) return;
+    if (file.size > MAX_IMAGE_BYTES) {
+      alert("Image must be 2 MB or smaller.");
+      return;
+    }
+    if (!(IMAGE_MIME_TYPES as readonly string[]).includes(file.type)) {
+      alert("Use JPG, PNG, or WebP.");
+      return;
+    }
+    const ext =
+      file.type === "image/png"
+        ? "png"
+        : file.type === "image/webp"
+          ? "webp"
+          : "jpg";
+    const path = `choices/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const supabase = createClient();
+    const { error } = await supabase.storage
+      .from("event-posters")
+      .upload(path, file, { contentType: file.type, upsert: true });
+    if (error) {
+      alert(
+        `Upload failed: ${error.message}. Confirm Storage bucket event-posters allows organizer uploads.`,
+      );
+      return;
+    }
+    const { data } = supabase.storage.from("event-posters").getPublicUrl(path);
+    updateChoice(i, { imageUrl: data.publicUrl, avatarId: undefined });
+  }
+
+  return (
+    <div className="choice-editor">
+      <p className="choice-editor__title">
+        {isImage ? "Image / avatar options" : "Options"}
+      </p>
+      <ul className="choice-editor__list">
+        {choices.map((choice, i) => (
+          <li key={choice.id} className="choice-editor__item">
+            <label className="field">
+              <span>Label</span>
+              <input
+                value={choice.label}
+                onChange={(e) => updateChoice(i, { label: e.target.value })}
+              />
+            </label>
+
+            {isImage ? (
+              <div className="choice-editor__media">
+                <div className="choice-editor__preview">
+                  {choice.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={choice.imageUrl} alt="" />
+                  ) : choice.avatarId ? (
+                    <span className="avatar-chip avatar-chip--preview" data-avatar={choice.avatarId}>
+                      {FUN_AVATARS.find((a) => a.id === choice.avatarId)?.emoji ??
+                        "?"}
+                    </span>
+                  ) : (
+                    <span className="muted">No image yet</span>
+                  )}
+                </div>
+                <label className="field">
+                  <span>Built-in avatar</span>
+                  <select
+                    value={choice.avatarId ?? ""}
+                    onChange={(e) => {
+                      const avatarId = e.target.value || undefined;
+                      updateChoice(i, {
+                        avatarId,
+                        imageUrl: avatarId ? undefined : choice.imageUrl,
+                      });
+                    }}
+                  >
+                    <option value="">— Custom upload —</option>
+                    {FUN_AVATARS.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.emoji} {a.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Or upload image</span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(e) =>
+                      void uploadOptionImage(i, e.target.files?.[0] ?? null)
+                    }
+                  />
+                </label>
+              </div>
+            ) : null}
+
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => removeChoice(i)}
+              disabled={choices.length <= 1}
+            >
+              Remove option
+            </button>
+          </li>
+        ))}
+      </ul>
       <button
         type="button"
-        className="btn btn-secondary"
-        onClick={() => addField("short_text")}
+        className="btn btn-ghost"
+        onClick={() =>
+          onChange([
+            ...choices,
+            isImage
+              ? newChoice("New option", { avatarId: "star" })
+              : newChoice("New option"),
+          ])
+        }
       >
-        Add field
+        Add option
       </button>
     </div>
   );
