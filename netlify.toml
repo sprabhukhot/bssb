@@ -9,6 +9,11 @@
 [build.environment]
   NODE_VERSION = "22"
   NEXT_TELEMETRY_DISABLED = "1"
+  # Keep scanning on. Omit generated cache (and this server-only key) so a
+  # request-time env value inlined into Turbopack cache does not fail deploy.
+  SECRETS_SCAN_ENABLED = "true"
+  SECRETS_SCAN_OMIT_PATHS = ".netlify"
+  SECRETS_SCAN_OMIT_KEYS = "RESEND_API_KEY"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"

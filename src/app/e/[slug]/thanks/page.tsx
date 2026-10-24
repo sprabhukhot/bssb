@@ -4,10 +4,13 @@ import { createClient } from "@/lib/supabase/server";
 
 export default async function ThanksPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ mail?: string }>;
 }) {
   const { slug } = await params;
+  const { mail } = await searchParams;
   const supabase = await createClient();
   const { data: event } = await supabase
     .from("events")
@@ -27,8 +30,9 @@ export default async function ThanksPage({
             {event
               ? `We have your registration for ${event.title}.`
               : "We have your registration."}{" "}
-            If this event requires payment, your spot is confirmed after payment
-            is received (organizers typically email within a few days).
+            {mail === "sent"
+              ? "A confirmation email was sent."
+              : "We could not send a confirmation email. Your registration is still saved."}
           </p>
           {event ? (
             <Link className="btn btn-primary" href={`/e/${event.slug}`}>

@@ -130,12 +130,12 @@ Default mailer cannot edit Magic Link templates. If you want reliable magic link
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | *(publishable key — do not commit)* |
 | `NEXT_PUBLIC_SITE_URL` | `https://events.bssb.cz` |
 | `RESEND_API_KEY` | Resend API key (registration confirmations; skip send if unset) |
-| `RESEND_FROM` | optional, default `BSSB Events <noreply@bssb.cz>` |
+| `RESEND_FROM` | optional. Default `BSSB Events <beth.t@example.com>`. Custom From needs a verified Resend domain. |
 
 ## 4) Deploy and smoke-test
 
 1. Deploy / redeploy after the password-login commit lands.
-2. https://events.bssb.cz/login → `treasurer@bssb.cz` + password → Events / Site content / Organizers (admin).
+2. https://events.bssb.cz/login → organizer email + password → Events (and Site content / Organizers if site admin).
 3. Create → publish → **Copy link** → test `/e/…`.
 
 ### Troubleshooting (login errors are now distinct)

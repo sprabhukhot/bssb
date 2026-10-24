@@ -84,4 +84,4 @@ This adds poster/donation text columns and refreshes `register_attendee` so mult
 
 ## Registration confirmation email
 
-After a successful registration the server sends a confirmation via **Resend** (not Supabase Auth SMTP). Set Netlify env `RESEND_API_KEY` and optionally `RESEND_FROM`. If the key is missing or send fails, registration still succeeds.
+After a successful registration the server sends a confirmation via **Resend** (not Supabase Auth SMTP). Set Netlify `RESEND_API_KEY`. Default From is `BSSB Events <beth.t@example.com>` (works without a verified domain). Set `RESEND_FROM` only after verifying the domain in Resend. If the key is missing or send fails, registration still succeeds.

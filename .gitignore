@@ -17,6 +17,9 @@
 /.next/
 /out/
 
+# Netlify CLI / plugin cache (never commit build artifacts)
+.netlify
+
 # production
 /build
 

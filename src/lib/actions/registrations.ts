@@ -68,6 +68,7 @@ function collectAnswers(
         };
       }
       answers[field.id] = raw.toLowerCase();
+      if (!answers.email) answers.email = raw.toLowerCase();
       continue;
     }
 
@@ -122,6 +123,13 @@ function collectAnswers(
       (!answers.full_name && field.type === "short_text")
     ) {
       if (!answers.full_name) answers.full_name = raw;
+    }
+    if (
+      !answers.email &&
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw) &&
+      (field.type === "short_text" || /e-?mail/i.test(field.label + field.id))
+    ) {
+      answers.email = raw.toLowerCase();
     }
   }
 
@@ -196,18 +204,21 @@ export async function registerForEvent(eventId: string, formData: FormData) {
     return { error: error.message };
   }
 
+  let mail = "none";
   try {
-    await sendRegistrationConfirmation({
+    const result = await sendRegistrationConfirmation({
       answers: collected.answers,
       fields,
       eventTitle: event.title || "this event",
       donationImageUrl: event.donation_image_url,
     });
+    mail = result.status === "sent" ? "sent" : "none";
   } catch (err) {
-    console.info("[confirm-email] send skipped", {
+    console.info("[confirm-email] failed", {
+      reason: "unhandled",
       message: err instanceof Error ? err.message.slice(0, 120) : "unknown",
     });
   }
 
-  redirect(`/e/${event.slug}/thanks`);
+  redirect(`/e/${event.slug}/thanks?mail=${mail}`);
 }

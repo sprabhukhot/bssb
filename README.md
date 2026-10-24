@@ -33,7 +33,8 @@ Full NGO-facing setup (accounts, Netlify deploy, env vars) is in the Project pla
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
    NEXT_PUBLIC_SITE_URL=https://events.bssb.cz
    RESEND_API_KEY=re_xxxxxxxx
-   # optional:
+   # optional — default is BSSB Events <beth.t@example.com>
+   # Custom From needs a verified Resend domain:
    # RESEND_FROM=BSSB Events <noreply@bssb.cz>
    ```
 
