@@ -54,8 +54,8 @@ export default async function AdminLayout({
             <h1 className="page-title">Almost there</h1>
             <p className="page-lead">
               You are signed in as <strong>{user.email}</strong>, but this email
-              is not on the BSSB organizers list yet. Ask the site admin
-              (treasurer@bssb.cz) to add you, then refresh.
+              is not on the BSSB organizers list yet. Ask a site admin to add
+              you, then refresh.
             </p>
           </div>
         ) : (

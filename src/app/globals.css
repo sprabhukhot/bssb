@@ -1161,11 +1161,15 @@ table.data th {
 }
 
 .poster-preview img {
+  display: block;
   width: 100%;
-  max-height: 280px;
-  object-fit: cover;
+  height: auto;
+  max-height: 320px;
+  object-fit: contain;
+  object-position: center;
   border-radius: var(--radius-md);
   border: 1px solid #e5e7eb;
+  background: #fff7ed;
 }
 
 .image-content-block {
@@ -1189,10 +1193,6 @@ table.data th {
 .media-hero__frame {
   width: 100%;
   background: #0f172a08;
-  min-height: min(52vw, 420px);
-  max-height: min(70vh, 720px);
-  display: grid;
-  place-items: center;
   overflow: hidden;
 }
 
@@ -1202,11 +1202,12 @@ table.data th {
 }
 
 .media-hero__img {
-  width: 100%;
-  height: 100%;
-  max-height: min(70vh, 720px);
-  object-fit: cover;
   display: block;
+  width: 100%;
+  height: auto;
+  max-height: min(70vh, 720px);
+  object-fit: contain;
+  object-position: center;
 }
 
 .media-hero__frame--contain .media-hero__img {
@@ -1239,7 +1240,6 @@ table.data th {
   margin: 0 1.35rem;
   border-radius: var(--radius-md);
   border: 1px solid #f0e6da;
-  min-height: min(40vw, 280px);
 }
 
 .page-meta {

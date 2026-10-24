@@ -7,6 +7,7 @@ import {
   type AnswersMap,
   type FormField,
 } from "@/lib/form-fields";
+import { sendRegistrationConfirmation } from "@/lib/confirmation-email";
 import { createClient } from "@/lib/supabase/server";
 import { normalizePhone } from "@/lib/utils";
 
@@ -145,7 +146,7 @@ export async function registerForEvent(eventId: string, formData: FormData) {
 
   const { data: event, error: eventError } = await supabase
     .from("events")
-    .select("id, slug, is_published, form_fields")
+    .select("id, slug, title, is_published, form_fields, donation_image_url")
     .eq("id", eventId)
     .single();
 
@@ -193,6 +194,19 @@ export async function registerForEvent(eventId: string, formData: FormData) {
       return { error: `Choose a valid option for ${label}` };
     }
     return { error: error.message };
+  }
+
+  try {
+    await sendRegistrationConfirmation({
+      answers: collected.answers,
+      fields,
+      eventTitle: event.title || "this event",
+      donationImageUrl: event.donation_image_url,
+    });
+  } catch (err) {
+    console.info("[confirm-email] send skipped", {
+      message: err instanceof Error ? err.message.slice(0, 120) : "unknown",
+    });
   }
 
   redirect(`/e/${event.slug}/thanks`);

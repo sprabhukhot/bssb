@@ -9,7 +9,7 @@ On **Edit event**, each image upload has optional **heading** and **body** field
 | `poster_heading` / `poster_body` | Shown under the event poster on `/e/[slug]` |
 | `donation_heading` / `donation_body` | Shown under the donation/QR image |
 
-Public posters and donation images use the full content width (large on desktop, responsive on mobile).
+Public posters and donation images use the full content width (large on desktop, responsive on mobile) and keep aspect ratio (`object-fit: contain` — no stretch).
 
 Apply migration `008_image_captions_choice_fields.sql` so these columns exist.
 
@@ -81,3 +81,7 @@ In the Supabase SQL editor, run:
 `supabase/migrations/008_image_captions_choice_fields.sql`
 
 This adds poster/donation text columns and refreshes `register_attendee` so multi-select arrays and choice ids validate correctly.
+
+## Registration confirmation email
+
+After a successful registration the server sends a confirmation via **Resend** (not Supabase Auth SMTP). Set Netlify env `RESEND_API_KEY` and optionally `RESEND_FROM`. If the key is missing or send fails, registration still succeeds.

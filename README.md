@@ -32,6 +32,9 @@ Full NGO-facing setup (accounts, Netlify deploy, env vars) is in the Project pla
    NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
    NEXT_PUBLIC_SITE_URL=https://events.bssb.cz
+   RESEND_API_KEY=re_xxxxxxxx
+   # optional:
+   # RESEND_FROM=BSSB Events <noreply@bssb.cz>
    ```
 
 5. Deploy. Then set Supabase Auth **Site URL** = `https://events.bssb.cz` and **Redirect URLs** = `https://events.bssb.cz/auth/callback` (plus localhost for local). Never leave Site URL / `NEXT_PUBLIC_SITE_URL` on localhost in production.

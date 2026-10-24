@@ -136,7 +136,6 @@ export function LoginForm({
             type="email"
             required
             autoComplete="username"
-            placeholder="treasurer@bssb.cz"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />

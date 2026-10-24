@@ -129,6 +129,8 @@ Default mailer cannot edit Magic Link templates. If you want reliable magic link
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://nberqbgaqukcepskvbmb.supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | *(publishable key — do not commit)* |
 | `NEXT_PUBLIC_SITE_URL` | `https://events.bssb.cz` |
+| `RESEND_API_KEY` | Resend API key (registration confirmations; skip send if unset) |
+| `RESEND_FROM` | optional, default `BSSB Events <noreply@bssb.cz>` |
 
 ## 4) Deploy and smoke-test
 
