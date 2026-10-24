@@ -31,27 +31,33 @@ function isOtpType(value: string | null): value is EmailOtpType {
   return !!value && (OTP_TYPES as readonly string[]).includes(value);
 }
 
-/** Prefer declared type, then try email + magiclink (common Magic link templates). */
+/** Prefer declared type; recovery stays recovery-only. */
 function typesToTry(typeParam: string | null): EmailOtpType[] {
+  if (typeParam === "recovery") return ["recovery"];
   const preferred = isOtpType(typeParam) ? [typeParam] : [];
   const fallback: EmailOtpType[] = ["email", "magiclink"];
   return [...preferred, ...fallback.filter((t) => t !== typeParam)];
 }
 
 /**
- * Completes magic-link / email OTP sign-in.
+ * Completes magic-link / email OTP / recovery.
  *
- * Prefer `token_hash` + `type` (email or magiclink). PKCE `code` remains a
- * fallback for default ConfirmationURL emails, but that flow fails across browsers.
+ * Prefer `token_hash` + `type`. PKCE `code` remains a fallback for default
+ * ConfirmationURL emails. Recovery always continues to `/auth/reset`.
  */
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const { searchParams } = requestUrl;
   const origin = appOrigin(requestUrl);
-  const next = safeNextPath(searchParams.get("next"));
   const token_hash = searchParams.get("token_hash");
   const typeParam = searchParams.get("type");
   const code = searchParams.get("code");
+
+  let next = safeNextPath(searchParams.get("next"));
+  // Password recovery must land on the set-password form, never /admin or home.
+  if (typeParam === "recovery" || next === "/auth/reset") {
+    next = "/auth/reset";
+  }
 
   const successRedirect = NextResponse.redirect(`${origin}${next}`);
   const { url, anonKey } = getSupabaseEnv();
@@ -72,7 +78,6 @@ export async function GET(request: NextRequest) {
   let lastMessage: string | null = null;
 
   if (token_hash) {
-    // Capture before !isOtpType() — negated type predicate can narrow to `never`.
     const typePreview =
       typeof typeParam === "string" ? typeParam.slice(0, 32) : "";
     if (typeParam && !isOtpType(typeParam)) {
@@ -97,7 +102,12 @@ export async function GET(request: NextRequest) {
     }
   } else if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) return successRedirect;
+    if (!error) {
+      // Default recovery emails sometimes only pass `code` (no type=).
+      // If next was still /admin, send recovery-looking sessions to reset when
+      // the URL explicitly asked for reset or type=recovery (handled above).
+      return successRedirect;
+    }
     lastMessage = error.message;
     console.info("[auth/callback] exchangeCodeForSession failed", {
       code: error.code ?? null,
@@ -111,7 +121,9 @@ export async function GET(request: NextRequest) {
     missingToken: !token_hash && !code,
     typeIssue: Boolean(token_hash && typeParam && !isOtpType(typeParam)),
   });
-  return NextResponse.redirect(
-    `${origin}/login?error=auth&reason=${encodeURIComponent(reason)}`,
-  );
+  const failPath =
+    typeParam === "recovery" || next === "/auth/reset"
+      ? `/auth/reset?error=auth&reason=${encodeURIComponent(reason)}`
+      : `/login?error=auth&reason=${encodeURIComponent(reason)}`;
+  return NextResponse.redirect(`${origin}${failPath}`);
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { RecoveryHashRedirect } from "@/components/recovery-hash-redirect";
 import { SiteHeader } from "@/components/site-header";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_SITE_CONTENT, mergeSiteContent } from "@/lib/site-content";
@@ -19,6 +20,7 @@ export default async function HomePage() {
 
   return (
     <main className="landing">
+      <RecoveryHashRedirect />
       <SiteHeader
         subtitle={content.subtitle}
         right={

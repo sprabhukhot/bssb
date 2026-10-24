@@ -23,20 +23,25 @@ async function assertAllowlisted(
   const { data, error } = await supabase
     .from("admin_emails")
     .select("email")
-    .eq("email", email)
+    .ilike("email", email)
     .maybeSingle();
 
   if (error) {
-    console.info("[auth] allowlist lookup failed", { code: error.code });
+    console.info("[auth] allowlist lookup failed", {
+      code: error.code,
+      message: error.message?.slice(0, 80) ?? null,
+    });
     return {
-      error: "Could not verify organizer access. Try again in a moment.",
+      error:
+        "Allowlist check failed (database/RLS). Confirm admin_emails is readable for authenticated organizers, then retry.",
       ok: false,
     };
   }
   if (!data) {
     await supabase.auth.signOut();
     return {
-      error: "This email is not on the organizer allowlist.",
+      error:
+        "Signed in to Auth, but this email is not on the organizer allowlist (admin_emails). Ask the site admin to add it.",
       ok: false,
     };
   }
@@ -46,18 +51,52 @@ async function assertAllowlisted(
 /** Primary organizer sign-in (no custom SMTP / email templates required). */
 export async function signInWithPassword(formData: FormData) {
   const email = normalizeEmail(formData.get("email"));
+  // Do not trim password — spaces may be intentional.
   const password = String(formData.get("password") ?? "");
   const next = safeNextPath(String(formData.get("next") ?? "/admin"));
 
   if (!email) return { error: "Email is required." };
   if (!password) return { error: "Password is required." };
 
-  const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  let supabase: Awaited<ReturnType<typeof createClient>>;
+  try {
+    supabase = await createClient();
+  } catch (err) {
+    console.info("[auth] createClient failed", {
+      message: err instanceof Error ? err.message.slice(0, 120) : "unknown",
+    });
+    return {
+      error: publicAuthError(
+        err instanceof Error
+          ? err.message
+          : "Missing NEXT_PUBLIC_SUPABASE_URL or ANON_KEY",
+      ),
+    };
+  }
 
-  if (error) {
-    console.info("[auth] signInWithPassword failed", { code: error.code ?? null });
-    return { error: publicAuthError(error.message) };
+  let authError: { message?: string; code?: string; status?: number } | null =
+    null;
+  try {
+    const result = await supabase.auth.signInWithPassword({ email, password });
+    authError = result.error;
+  } catch (err) {
+    console.info("[auth] signInWithPassword threw", {
+      message: err instanceof Error ? err.message.slice(0, 120) : "unknown",
+    });
+    return {
+      error: publicAuthError(
+        err instanceof Error ? err.message : "failed to fetch",
+      ),
+    };
+  }
+
+  if (authError) {
+    console.info("[auth] signInWithPassword failed", {
+      code: authError.code ?? null,
+      status: authError.status ?? null,
+      message: authError.message?.slice(0, 100) ?? null,
+    });
+    return { error: publicAuthError(authError) };
   }
 
   const allow = await assertAllowlisted(supabase, email);
@@ -87,7 +126,17 @@ export async function sendMagicLink(formData: FormData) {
   // Optional path: default Supabase mailer cannot customize templates without SMTP.
   const emailRedirectTo = `${siteUrl}/auth/callback?next=${encodeURIComponent(next)}`;
 
-  const supabase = await createClient();
+  let supabase: Awaited<ReturnType<typeof createClient>>;
+  try {
+    supabase = await createClient();
+  } catch (err) {
+    return {
+      error: publicAuthError(
+        err instanceof Error ? err.message : "Missing Supabase env",
+      ),
+    };
+  }
+
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
@@ -96,7 +145,7 @@ export async function sendMagicLink(formData: FormData) {
     },
   });
 
-  if (error) return { error: publicAuthError(error.message) };
+  if (error) return { error: publicAuthError(error) };
   return {
     success: true,
     email,
@@ -117,9 +166,18 @@ export async function verifyEmailOtp(formData: FormData) {
     return { error: "Enter the 6-digit code from your email." };
   }
 
-  const supabase = await createClient();
+  let supabase: Awaited<ReturnType<typeof createClient>>;
+  try {
+    supabase = await createClient();
+  } catch (err) {
+    return {
+      error: publicAuthError(
+        err instanceof Error ? err.message : "Missing Supabase env",
+      ),
+    };
+  }
 
-  let lastMessage: string | null = null;
+  let lastError: { message?: string; code?: string } | null = null;
   for (const type of ["email", "magiclink"] as const) {
     const { error } = await supabase.auth.verifyOtp({
       email,
@@ -131,14 +189,14 @@ export async function verifyEmailOtp(formData: FormData) {
       if (!allow.ok) return { error: allow.error };
       redirect(next);
     }
-    lastMessage = error.message;
+    lastError = error;
     console.info("[auth] verifyEmailOtp failed", {
       type,
       code: error.code ?? null,
     });
   }
 
-  return { error: publicAuthError(lastMessage) };
+  return { error: publicAuthError(lastError) };
 }
 
 export async function signOut() {

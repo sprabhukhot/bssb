@@ -6,16 +6,20 @@ import {
   signInWithPassword,
   verifyEmailOtp,
 } from "@/lib/actions/auth";
+import { requestPasswordReset } from "@/lib/actions/password";
+import { isNextRedirectError } from "@/lib/auth-errors";
 
 export function LoginForm({
   nextPath,
   initialError,
+  initialMessage,
 }: {
   nextPath: string;
   initialError?: string;
+  initialMessage?: string;
 }) {
   const [error, setError] = useState<string | null>(initialError ?? null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(initialMessage ?? null);
   const [pending, setPending] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -26,36 +30,98 @@ export function LoginForm({
     setPending(true);
     setError(null);
     setMessage(null);
-    const result = await signInWithPassword(formData);
-    setPending(false);
-    if (result?.error) setError(result.error);
+
+    const trimmedEmail = email.trim();
+    setEmail(trimmedEmail);
+
+    formData.set("email", trimmedEmail);
+    formData.set("password", password);
+    formData.set("next", nextPath);
+
+    try {
+      const result = await signInWithPassword(formData);
+      if (result?.error) setError(result.error);
+    } catch (err) {
+      if (isNextRedirectError(err)) throw err;
+      const msg =
+        err instanceof Error ? err.message : "Sign-in request failed.";
+      setError(
+        msg.toLowerCase().includes("fetch") ||
+          msg.toLowerCase().includes("network")
+          ? "Could not reach the server or Supabase. Check Netlify env NEXT_PUBLIC_SUPABASE_URL / ANON_KEY and retry."
+          : `Sign-in request failed: ${msg.slice(0, 160)}`,
+      );
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function onForgotPassword() {
+    setPending(true);
+    setError(null);
+    setMessage(null);
+    const trimmedEmail = email.trim();
+    setEmail(trimmedEmail);
+    const formData = new FormData();
+    formData.set("email", trimmedEmail);
+    try {
+      const result = await requestPasswordReset(formData);
+      if (result.error) setError(result.error);
+      else setMessage(result.message ?? "Check your email for a reset link.");
+    } catch (err) {
+      if (isNextRedirectError(err)) throw err;
+      setError("Could not send reset email. Set the password in Supabase Auth → Users instead.");
+    } finally {
+      setPending(false);
+    }
   }
 
   async function onSendLink(formData: FormData) {
     setPending(true);
     setError(null);
     setMessage(null);
-    const result = await sendMagicLink(formData);
-    setPending(false);
-    if (result.error) {
-      setError(result.error);
+    const trimmedEmail = email.trim();
+    setEmail(trimmedEmail);
+    formData.set("email", trimmedEmail);
+    formData.set("next", nextPath);
+    try {
+      const result = await sendMagicLink(formData);
+      if (result.error) {
+        setError(result.error);
+        setShowOtp(true);
+        return;
+      }
       setShowOtp(true);
-      return;
+      setMessage(result.message ?? "Check your email.");
+      if (result.email) setEmail(result.email);
+    } catch (err) {
+      if (isNextRedirectError(err)) throw err;
+      setError("Could not send magic link. Prefer email + password.");
+    } finally {
+      setPending(false);
     }
-    setShowOtp(true);
-    setMessage(result.message ?? "Check your email.");
-    if (result.email) setEmail(result.email);
   }
 
   async function onVerifyOtp(formData: FormData) {
     setPending(true);
     setError(null);
     setMessage(null);
-    const result = await verifyEmailOtp(formData);
-    setPending(false);
-    if (result?.error) {
-      setError(result.error);
-      setShowOtp(true);
+    const trimmedEmail = email.trim();
+    setEmail(trimmedEmail);
+    formData.set("email", trimmedEmail);
+    formData.set("token", otp);
+    formData.set("next", nextPath);
+    try {
+      const result = await verifyEmailOtp(formData);
+      if (result?.error) {
+        setError(result.error);
+        setShowOtp(true);
+      }
+    } catch (err) {
+      if (isNextRedirectError(err)) throw err;
+      setError("Could not verify the code. Prefer email + password.");
+    } finally {
+      setPending(false);
     }
   }
 
@@ -70,7 +136,7 @@ export function LoginForm({
             type="email"
             required
             autoComplete="username"
-            placeholder="you@example.com"
+            placeholder="treasurer@bssb.cz"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
@@ -94,6 +160,16 @@ export function LoginForm({
         </button>
       </form>
 
+      <button
+        type="button"
+        className="btn btn-ghost"
+        style={{ justifySelf: "start" }}
+        disabled={pending || !email.trim()}
+        onClick={() => void onForgotPassword()}
+      >
+        Forgot password?
+      </button>
+
       <details style={{ marginTop: 8 }}>
         <summary style={{ cursor: "pointer", fontWeight: 600 }}>
           Magic link / email code
@@ -104,7 +180,7 @@ export function LoginForm({
           <button
             className="btn btn-ghost"
             type="submit"
-            disabled={pending || !email}
+            disabled={pending || !email.trim()}
           >
             {pending ? "Sending…" : "Email me a magic link"}
           </button>
@@ -134,7 +210,7 @@ export function LoginForm({
             <button
               className="btn btn-primary"
               type="submit"
-              disabled={pending || !email}
+              disabled={pending || !email.trim()}
             >
               {pending ? "Verifying…" : "Verify code and sign in"}
             </button>

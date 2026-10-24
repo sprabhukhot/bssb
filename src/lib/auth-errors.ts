@@ -1,29 +1,119 @@
-/** Map Supabase auth failures to safe, user-facing copy (no secrets / raw dumps). */
-export function publicAuthError(message: string | null | undefined): string {
-  const m = (message ?? "").toLowerCase();
+/** Safe, distinct Auth error copy — never collapse every failure into “wrong password”. */
+
+export type AuthErrorLike = {
+  message?: string | null;
+  code?: string | null;
+  status?: number | null;
+  name?: string | null;
+};
+
+function asParts(
+  error: AuthErrorLike | string | null | undefined,
+): { code: string; message: string } {
+  if (error == null) return { code: "", message: "" };
+  if (typeof error === "string") {
+    return { code: "", message: error };
+  }
+  return {
+    code: String(error.code ?? "").toLowerCase(),
+    message: String(error.message ?? ""),
+  };
+}
+
+/**
+ * Map Supabase Auth / network failures to distinct organizer-facing messages.
+ * Prefer `error.code` when present; fall back to message substrings carefully
+ * (avoid broad matches like bare "invalid" that swallow unrelated failures).
+ */
+export function publicAuthError(
+  error: AuthErrorLike | string | null | undefined,
+): string {
+  const { code, message } = asParts(error);
+  const m = message.toLowerCase();
+
+  // --- Email confirmation ---
   if (
-    m.includes("invalid login") ||
-    m.includes("invalid credentials") ||
+    code === "email_not_confirmed" ||
+    m.includes("email not confirmed") ||
+    m.includes("email_not_confirmed")
+  ) {
+    return "Email not confirmed. In Supabase → Authentication → Users, open this user and confirm the email (or recreate with Auto Confirm). Also turn Confirm email OFF under Authentication → Providers → Email if organizers should sign in immediately.";
+  }
+
+  // --- Wrong email/password only ---
+  if (
+    code === "invalid_credentials" ||
+    code === "invalid_grant" ||
+    m.includes("invalid login credentials") ||
     m.includes("invalid_credentials")
   ) {
-    return "Wrong email or password. Check both, or ask an admin to reset the password in Supabase Auth → Users.";
+    return "Wrong email or password (Supabase Auth rejected this pair). Confirm Authentication → Providers → Email is enabled, then reset the password under Authentication → Users.";
   }
-  if (m.includes("email not confirmed") || m.includes("not_confirmed")) {
-    return "This account is not confirmed yet. In Supabase Auth → Users, open the user and confirm the email (or recreate with Auto Confirm).";
+
+  // --- Provider / password sign-in disabled ---
+  if (
+    code === "email_provider_disabled" ||
+    code === "signup_disabled" ||
+    m.includes("email logins are disabled") ||
+    m.includes("provider is not enabled") ||
+    m.includes("password signups are disabled") ||
+    m.includes("phone logins are disabled")
+  ) {
+    return "Email/password sign-in is disabled in this Supabase project. Open Authentication → Providers → Email → enable Email (and keep password sign-in available).";
   }
-  if (m.includes("rate limit") || m.includes("over_email_send_rate_limit")) {
-    return "Email rate limit exceeded. Prefer email + password sign-in, or wait and try magic link once.";
+
+  // --- Rate limits ---
+  if (
+    code === "over_request_rate_limit" ||
+    code === "over_email_send_rate_limit" ||
+    m.includes("rate limit") ||
+    m.includes("too many requests")
+  ) {
+    return "Rate limit exceeded. Wait a minute, then retry email + password (avoid magic link until the limit clears).";
   }
-  if (m.includes("otp_expired") || m.includes("expired")) {
-    return "That code or link expired. Prefer email + password, or request a new magic link.";
+
+  // --- OTP / magic link specific (not password) ---
+  if (
+    code === "otp_expired" ||
+    code === "otp_disabled" ||
+    m.includes("otp_expired") ||
+    m.includes("token has expired") ||
+    m.includes("otp has expired")
+  ) {
+    return "That email code or magic link expired. Prefer email + password, or request a new code.";
   }
-  if (m.includes("access_denied")) {
-    return "Sign-in was denied. Use email + password, or request a fresh magic link.";
+  if (m.includes("access_denied") && m.includes("otp")) {
+    return "Magic-link/OTP was denied. Prefer email + password.";
   }
-  if (m.includes("invalid") || m.includes("otp_disabled")) {
-    return "Invalid code or credentials. Use email + password, or check the latest email code.";
+
+  // --- Network / env / fetch (must not look like wrong password) ---
+  if (
+    m.includes("failed to fetch") ||
+    m.includes("fetch failed") ||
+    m.includes("networkerror") ||
+    m.includes("network request failed") ||
+    m.includes("load failed") ||
+    code === "unexpected_failure"
+  ) {
+    return "Could not reach Supabase. Check Netlify env NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY (project nberqbgaqukcepskvbmb), redeploy, then retry.";
   }
-  return "Sign-in failed. Use email + password with an allowlisted organizer email.";
+
+  if (
+    m.includes("missing next_public_supabase") ||
+    m.includes("supabase_url") ||
+    m.includes("anon_key") ||
+    m.includes("publishable")
+  ) {
+    return "Supabase env is missing or misconfigured on the server. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Netlify, then redeploy.";
+  }
+
+  // Generic fallback — include short safe detail so it is not mistaken for wrong password
+  const hint = message.trim()
+    ? ` (${message.trim().slice(0, 120)})`
+    : code
+      ? ` (code: ${code})`
+      : "";
+  return `Sign-in failed${hint}. This is not classified as a wrong-password error — check allowlist, Email provider settings, and Netlify env.`;
 }
 
 export function loginErrorFromParams(
@@ -50,7 +140,17 @@ export function authFailureReason(
   if (opts?.typeIssue) return "type";
   if (opts?.usedCodeOnly) return "pkce";
   const m = (message ?? "").toLowerCase();
-  if (m.includes("otp_expired") || m.includes("expired")) return "expired";
+  if (m.includes("otp_expired") || m.includes("token has expired")) return "expired";
   if (m.includes("access_denied")) return "expired";
   return "auth";
+}
+
+/** True when Next.js redirect() aborted the server action (must rethrow on the client). */
+export function isNextRedirectError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const digest =
+    "digest" in err && typeof (err as { digest: unknown }).digest === "string"
+      ? (err as { digest: string }).digest
+      : "";
+  return digest.startsWith("NEXT_REDIRECT");
 }
