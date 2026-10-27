@@ -33,9 +33,12 @@ Full NGO-facing setup (accounts, Netlify deploy, env vars) is in the Project pla
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
    NEXT_PUBLIC_SITE_URL=https://events.bssb.cz
    RESEND_API_KEY=re_xxxxxxxx
-   # optional — default is BSSB Events <beth.t@example.com>
-   # Custom From needs a verified Resend domain:
-   # RESEND_FROM=BSSB Events <noreply@bssb.cz>
+   # Required to email any registrant (not just the Resend account owner):
+   # 1) Verify bssb.cz or events.bssb.cz in Resend → Domains
+   # 2) Then set From on that verified domain:
+   RESEND_FROM=BSSB Events <noreply@events.bssb.cz>
+   # Until the domain is verified, beth.t@example.com can only
+   # deliver to the email on the Resend account (test inbox).
    ```
 
 5. Deploy. Then set Supabase Auth **Site URL** = `https://events.bssb.cz` and **Redirect URLs** = `https://events.bssb.cz/auth/callback` (plus localhost for local). Never leave Site URL / `NEXT_PUBLIC_SITE_URL` on localhost in production.

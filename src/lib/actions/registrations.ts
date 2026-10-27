@@ -204,7 +204,7 @@ export async function registerForEvent(eventId: string, formData: FormData) {
     return { error: error.message };
   }
 
-  let mail = "none";
+  let mail = "failed";
   try {
     const result = await sendRegistrationConfirmation({
       answers: collected.answers,
@@ -212,13 +212,13 @@ export async function registerForEvent(eventId: string, formData: FormData) {
       eventTitle: event.title || "this event",
       donationImageUrl: event.donation_image_url,
     });
-    mail = result.status === "sent" ? "sent" : "none";
+    mail = result.reason;
   } catch (err) {
     console.info("[confirm-email] failed", {
-      reason: "unhandled",
+      reason: "failed",
       message: err instanceof Error ? err.message.slice(0, 120) : "unknown",
     });
   }
 
-  redirect(`/e/${event.slug}/thanks?mail=${mail}`);
+  redirect(`/e/${event.slug}/thanks?mail=${encodeURIComponent(mail)}`);
 }

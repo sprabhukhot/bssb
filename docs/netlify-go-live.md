@@ -130,7 +130,21 @@ Default mailer cannot edit Magic Link templates. If you want reliable magic link
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | *(publishable key — do not commit)* |
 | `NEXT_PUBLIC_SITE_URL` | `https://events.bssb.cz` |
 | `RESEND_API_KEY` | Resend API key (registration confirmations; skip send if unset) |
-| `RESEND_FROM` | optional. Default `BSSB Events <beth.t@example.com>`. Custom From needs a verified Resend domain. |
+| `RESEND_FROM` | **Required to email any registrant.** After verifying `bssb.cz` or `events.bssb.cz` in Resend → Domains, set `BSSB Events <noreply@events.bssb.cz>` (or another address on that verified domain). Default `beth.t@example.com` can only deliver to the Resend account owner’s email. |
+
+### Confirmation email (Resend domain)
+
+`beth.t@example.com` is a test sender. Arbitrary registrant addresses fail (or never arrive) until a custom domain is verified.
+
+1. Resend → **Domains** → Add Domain → `events.bssb.cz` (or `bssb.cz`).
+2. Add the DNS records Resend shows (DKIM / SPF; MX only if you intend inbound on that host).
+3. Wait until the domain status is **Verified**.
+4. Netlify → Site → Environment variables (Production) → set  
+   `RESEND_FROM=BSSB Events <noreply@events.bssb.cz>`  
+   (keep `RESEND_API_KEY`). Redeploy is not required for request-time env, but a redeploy is fine.
+5. Register with a real address and confirm `/e/…/thanks` says a confirmation email was sent.
+
+Until step 3–4, only the email on the Resend account can receive test mail. Registration still succeeds either way.
 
 ## 4) Deploy and smoke-test
 

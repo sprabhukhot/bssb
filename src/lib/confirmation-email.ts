@@ -4,12 +4,25 @@ import type { AnswersMap, FormField } from "@/lib/form-fields";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 const DONATE_URL = "https://bssb.cz/donate";
-/** Works on Resend’s free plan without a verified custom domain. */
+/**
+ * Resend test sender. Can only deliver to the Resend account owner’s email
+ * until a custom domain is verified and `RESEND_FROM` uses that domain.
+ */
 export const DEFAULT_RESEND_FROM = "BSSB Events <beth.t@example.com>";
+
+/** Safe query values for `/thanks?mail=` — never include secrets or API text. */
+export type MailReason =
+  | "sent"
+  | "no_address"
+  | "missing_key"
+  | "restricted"
+  | "invalid_from"
+  | "invalid_to"
+  | "failed";
 
 export type ConfirmEmailResult = {
   status: "sent" | "skipped" | "failed";
-  reason: string;
+  reason: MailReason;
 };
 
 function asText(value: unknown): string {
@@ -170,6 +183,56 @@ function readServerEnv(name: string): string | undefined {
   return process.env[name];
 }
 
+function resendErrorText(body: string): string {
+  try {
+    const parsed = JSON.parse(body) as { message?: unknown };
+    if (typeof parsed.message === "string") return parsed.message;
+  } catch {
+    // plain text body
+  }
+  return body;
+}
+
+function redactEmails(value: string): string {
+  return value.replace(/[^\s@]+@[^\s@]+\.[^\s@]+/gi, "[email]");
+}
+
+/** Map Resend HTTP bodies to a short public reason (no secrets). */
+export function classifyResendFailure(status: number, body: string): MailReason {
+  const text = resendErrorText(body).toLowerCase();
+  if (
+    text.includes("only send testing emails") ||
+    text.includes("only send testing email") ||
+    (text.includes("own email") && text.includes("verify a domain"))
+  ) {
+    return "restricted";
+  }
+  if (
+    text.includes("invalid `to`") ||
+    text.includes("invalid to") ||
+    text.includes("invalid recipient")
+  ) {
+    return "invalid_to";
+  }
+  if (
+    text.includes("domain is not verified") ||
+    text.includes("invalid `from`") ||
+    text.includes("invalid from") ||
+    (status === 403 && text.includes("not verified"))
+  ) {
+    return "invalid_from";
+  }
+  if (
+    status === 401 ||
+    text.includes("api key is invalid") ||
+    text.includes("missing api key") ||
+    text.includes("unauthorized")
+  ) {
+    return "missing_key";
+  }
+  return "failed";
+}
+
 export async function sendRegistrationConfirmation(opts: {
   answers: AnswersMap;
   fields: FormField[];
@@ -178,14 +241,14 @@ export async function sendRegistrationConfirmation(opts: {
 }): Promise<ConfirmEmailResult> {
   const apiKey = readServerEnv("RESEND_API_KEY")?.trim();
   if (!apiKey) {
-    console.info("[confirm-email] skipped", { reason: "missing_api_key" });
-    return { status: "skipped", reason: "missing_api_key" };
+    console.info("[confirm-email] skipped", { reason: "missing_key" });
+    return { status: "skipped", reason: "missing_key" };
   }
 
   const to = registrantEmail(opts.answers, opts.fields);
   if (!to) {
-    console.info("[confirm-email] skipped", { reason: "no_recipient_email" });
-    return { status: "skipped", reason: "no_recipient_email" };
+    console.info("[confirm-email] skipped", { reason: "no_address" });
+    return { status: "skipped", reason: "no_address" };
   }
 
   const name = registrantName(opts.answers, opts.fields);
@@ -224,16 +287,17 @@ export async function sendRegistrationConfirmation(opts: {
 
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
+      const reason = classifyResendFailure(res.status, detail);
       console.info("[confirm-email] failed", {
-        reason: "resend_http",
+        reason,
         status: res.status,
         fromHost: from.includes("@") ? from.split("@").pop() : "unknown",
         hasRecipient: true,
         adults,
         kids,
-        detail: detail.slice(0, 160),
+        detail: redactEmails(resendErrorText(detail)).slice(0, 160),
       });
-      return { status: "failed", reason: "resend_http" };
+      return { status: "failed", reason };
     }
 
     console.info("[confirm-email] sent", {
@@ -242,12 +306,12 @@ export async function sendRegistrationConfirmation(opts: {
       adults,
       kids,
     });
-    return { status: "sent", reason: "ok" };
+    return { status: "sent", reason: "sent" };
   } catch (err) {
     console.info("[confirm-email] failed", {
-      reason: "fetch_error",
+      reason: "failed",
       message: err instanceof Error ? err.message.slice(0, 120) : "unknown",
     });
-    return { status: "failed", reason: "fetch_error" };
+    return { status: "failed", reason: "failed" };
   }
 }
