@@ -58,6 +58,27 @@ export function isChoiceFieldType(type: FormFieldType): boolean {
   return CHOICE_FIELD_TYPES.includes(type);
 }
 
+/** Used so confirmation email can find a recipient. */
+export function defaultEmailField(): FormField {
+  return {
+    id: "email",
+    type: "email",
+    label: "Email",
+    required: true,
+    helpText: "Required for a registration confirmation.",
+  };
+}
+
+/** Email-type field, or a field whose id/label looks like email. */
+export function formHasEmailField(fields: FormField[]): boolean {
+  return fields.some(
+    (f) =>
+      f.type === "email" ||
+      /e-?mail/i.test(f.id) ||
+      /e-?mail/i.test(f.label),
+  );
+}
+
 /** Sensible starter for new events — organizers can change freely. */
 export function defaultFormFields(): FormField[] {
   return [
@@ -74,13 +95,7 @@ export function defaultFormFields(): FormField[] {
       required: true,
       helpText: "Required — one registration per phone.",
     },
-    {
-      id: "email",
-      type: "email",
-      label: "Email",
-      required: false,
-      helpText: "Optional",
-    },
+    defaultEmailField(),
   ];
 }
 

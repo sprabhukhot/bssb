@@ -2,8 +2,10 @@
 
 import {
   FORM_FIELD_TYPES,
+  defaultEmailField,
   defaultFormFields,
   emptyChoicesForType,
+  formHasEmailField,
   isChoiceFieldType,
   newChoice,
   newFieldId,
@@ -47,23 +49,27 @@ export function FormFieldBuilder({ fields, onChange }: Props) {
   }
 
   function addField(type: FormFieldType = "short_text") {
+    if (type === "email") {
+      const starter = defaultEmailField();
+      const field: FormField = fields.some((f) => f.id === "email")
+        ? { ...starter, id: newFieldId() }
+        : starter;
+      onChange([...fields, field]);
+      return;
+    }
     const id =
       type === "phone" && !fields.some((f) => f.id === "phone")
         ? "phone"
-        : type === "email" && !fields.some((f) => f.id === "email")
-          ? "email"
-          : newFieldId();
+        : newFieldId();
     const field: FormField = {
       id,
       type,
       label:
         type === "phone"
           ? "Contact number"
-          : type === "email"
-            ? "Email"
-            : type === "image_choice"
-              ? "Pick your avatar"
-              : "New question",
+          : type === "image_choice"
+            ? "Pick your avatar"
+            : "New question",
       required: type === "phone" || type === "short_text",
       ...(isChoiceFieldType(type)
         ? { choices: emptyChoicesForType(type) }
@@ -72,6 +78,8 @@ export function FormFieldBuilder({ fields, onChange }: Props) {
     };
     onChange([...fields, field]);
   }
+
+  const missingEmail = !formHasEmailField(fields);
 
   return (
     <div className="form-builder">
@@ -229,7 +237,23 @@ export function FormFieldBuilder({ fields, onChange }: Props) {
         ))}
       </ul>
 
+      {missingEmail ? (
+        <p className="notice notice-privacy">
+          This form has no email field, so confirmation emails cannot be sent.
+          Existing registrations stay as they are until you save an email field.
+        </p>
+      ) : null}
+
       <div className="form-builder__add-row">
+        {missingEmail ? (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => addField("email")}
+          >
+            Add required email
+          </button>
+        ) : null}
         <button
           type="button"
           className="btn btn-secondary"

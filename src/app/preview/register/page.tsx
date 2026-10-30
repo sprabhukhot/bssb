@@ -8,7 +8,7 @@ export default function PreviewRegisterPage() {
           <header className="participant-event">
             <p className="participant-demo-note">
               Demo — guests see only the fields the organizer configured for
-              this event (default: name, phone, optional email).
+              this event (default: name, phone, required email).
             </p>
             <h1>Community gathering</h1>
             <ul className="participant-meta">
